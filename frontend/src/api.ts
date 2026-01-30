@@ -1,3 +1,5 @@
+import { apiUrl } from './config'
+
 export type Listing = {
   id: string
   source: string
@@ -29,14 +31,6 @@ export type CompareItem = {
 export type CompareResponse = {
   target: Target
   items: CompareItem[]
-}
-
-const API_BASE_URL =
-  (import.meta.env.VITE_API_BASE_URL as string | undefined) ??
-  'http://localhost:8000'
-
-function apiUrl(path: string): string {
-  return `${API_BASE_URL.replace(/\/$/, '')}${path}`
 }
 
 async function parseJsonOrThrow(res: Response): Promise<unknown> {

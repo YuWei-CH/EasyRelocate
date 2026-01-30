@@ -9,8 +9,47 @@ EasyRelocate does not scrape platforms server-side, host listings, process payme
 
 ## Repo structure
 - `backend/`: FastAPI + SQLite API
-- `frontend/`: React (Vite) web app (MapLibre + OpenStreetMap map, US-only for now)
+- `frontend/`: React (Vite) web app (Google Maps JS map + routing, US-only for now)
 - `extension/`: Chrome extension (Manifest V3) for user-side extraction
+
+## Configuration (API keys & env vars)
+EasyRelocate uses a single repo-root `.env` file for both frontend + backend.
+
+1. Copy the example:
+```bash
+cp .env.example .env
+```
+
+2. Edit `.env` and set your keys.
+
+### Frontend (Vite / browser)
+Frontend variables must start with `VITE_`:
+```bash
+# Required (browser key)
+VITE_GOOGLE_MAPS_API_KEY="YOUR_BROWSER_KEY"
+
+# Optional (defaults to http://localhost:8000)
+VITE_API_BASE_URL="http://localhost:8000"
+
+# Optional (useful for CI / keyless dev)
+# VITE_DISABLE_GOOGLE_MAPS="1"
+```
+
+### Backend (FastAPI / server)
+Backend reads standard env vars (auto-loads repo-root `.env` on startup):
+```bash
+# Optional (server key; used for /api/geocode and /api/reverse_geocode)
+GOOGLE_MAPS_API_KEY="YOUR_SERVER_KEY"
+GEOCODING_PROVIDER="google"
+
+# Optional
+ENABLE_GEOCODING="1"
+DATABASE_URL="sqlite:///easyrelocate.db"
+```
+
+### Extension (Chrome)
+The extension does not read `.env` files. Configure its API base URL in Chrome:
+Extension → **Details** → **Extension options** → “API base URL” (default: `http://localhost:8000`).
 
 ## Local dev (MVP)
 
@@ -48,6 +87,14 @@ Set your workplace target by:
 5. In the extension **Options**, set API base URL to `http://localhost:8000` (default)
 
 Then open an Airbnb listing detail page (`/rooms/...`) and click “Add to Compare”.
+
+## Google Maps setup (required)
+EasyRelocate uses Google Maps Platform for:
+- **Maps JavaScript API** (frontend map)
+- **Directions API** (routing: Drive/Bus/Walk/Bike)
+- **Geocoding API** (backend address lookup; optional but recommended)
+
+See: `docs/GOOGLE_MAPS_APPROX_LOCATION.md`
 
 ## Docs
 - Platform organization: `docs/PLATFORM_ORGANIZATION.md`

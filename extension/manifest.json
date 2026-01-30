@@ -16,7 +16,7 @@
   "content_scripts": [
     {
       "matches": ["https://airbnb.com/rooms/*", "https://*.airbnb.com/rooms/*"],
-      "js": ["content.js"],
+      "js": ["platforms/airbnb/content.js"],
       "run_at": "document_idle"
     }
   ],
@@ -25,4 +25,3 @@
     "default_title": "EasyRelocate"
   }
 }
-

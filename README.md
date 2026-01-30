@@ -32,7 +32,9 @@ npm install
 npm run dev
 ```
 
-Open: `http://localhost:5173`
+Open: `http://localhost:5173` (landing page)
+
+Compare app: `http://localhost:5173/#/compare`
 
 Set your workplace target by:
 - Typing an address (US) and clicking **Save**, or
@@ -46,3 +48,7 @@ Set your workplace target by:
 5. In the extension **Options**, set API base URL to `http://localhost:8000` (default)
 
 Then open an Airbnb listing detail page (`/rooms/...`) and click “Add to Compare”.
+
+## Docs
+- Platform organization: `docs/PLATFORM_ORGANIZATION.md`
+- Google maps “approx street”: `docs/GOOGLE_MAPS_APPROX_LOCATION.md`

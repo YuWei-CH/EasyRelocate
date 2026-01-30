@@ -20,6 +20,14 @@ function currencyFromSymbol(sym) {
   return null
 }
 
+function normalizeText(text) {
+  if (!text) return ''
+  return String(text)
+    .replace(/\u00a0/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+}
+
 function parsePriceFromText(text) {
   if (!text) return { price_value: null, currency: null, price_period: null }
   const t = text.replace(/\s+/g, ' ').trim()
@@ -45,6 +53,170 @@ function parsePriceFromText(text) {
   else if (/\btotal\b/i.test(t)) price_period = 'total'
 
   return { price_value, currency, price_period }
+}
+
+function inferPricePeriodFromText(text) {
+  const t = normalizeText(text).toLowerCase()
+  if (!t) return null
+
+  if (t.includes('total before taxes')) return 'total'
+  if (/\btotal\b/i.test(t)) return 'total'
+
+  if (/\bper night\b/i.test(t) || /\/\s*night\b/i.test(t)) return 'night'
+  if (/\bnight\b/i.test(t)) return 'night'
+
+  if (/\bper month\b/i.test(t) || /\/\s*month\b/i.test(t) || /\bmonthly\b/i.test(t))
+    return 'month'
+  if (/\bmonth\b/i.test(t)) return 'month'
+
+  if (/\b\d+\s+nights?\b/i.test(t)) return 'total'
+
+  return null
+}
+
+function inferAirbnbPricePeriodFromUrl() {
+  try {
+    const url = new URL(window.location.href)
+    const hasCheckIn = url.searchParams.has('check_in')
+    const hasCheckOut = url.searchParams.has('check_out')
+    if (hasCheckIn && hasCheckOut) return 'total'
+    return null
+  } catch {
+    return null
+  }
+}
+
+function extractAirbnbPriceFromDom() {
+  const candidates = []
+  const nodes = Array.from(
+    document.querySelectorAll('[style*="pricing-guest-primary-line-unit-price"]'),
+  )
+
+  for (const el of nodes) {
+    if (!(el instanceof HTMLElement)) continue
+    const parsed = parsePriceFromText(el.textContent || '')
+    if (parsed.price_value == null) continue
+
+    const ctx =
+      normalizeText(el.closest('section, aside, div')?.innerText || '') ||
+      normalizeText(el.parentElement?.innerText || '')
+
+    const period = parsed.price_period || inferPricePeriodFromText(ctx) || null
+
+    let score = 0
+    if (ctx) {
+      const lower = ctx.toLowerCase()
+      if (lower.includes('total before taxes')) score += 80
+      else if (lower.includes('total')) score += 55
+      if (/\b\d+\s+nights?\b/i.test(lower)) score += 25
+
+      if (/additional fee/i.test(lower)) score -= 120
+      else if (/\bfee\b/i.test(lower)) score -= 40
+      if (/\bdeposit\b/i.test(lower)) score -= 80
+    }
+
+    if (period === 'total') score += 30
+    else if (period === 'night') score += 10
+    else if (period === 'month') score += 10
+
+    candidates.push({
+      price_value: parsed.price_value,
+      currency: parsed.currency,
+      price_period: period,
+      score,
+    })
+  }
+
+  if (!candidates.length) return null
+  candidates.sort((a, b) => (b.score - a.score) || (b.price_value - a.price_value))
+
+  const best = candidates[0]
+  if (!best.currency) best.currency = 'USD'
+
+  if (!best.price_period) {
+    best.price_period = inferAirbnbPricePeriodFromUrl() || 'unknown'
+  }
+
+  return best
+}
+
+function extractBestPriceFromBodyText(bodyText) {
+  const t = normalizeText(bodyText)
+  if (!t) return { price_value: null, currency: null, price_period: null }
+
+  const directTotal = t.match(
+    /\btotal before taxes\b[\s\S]{0,220}?([$€£])\s?(\d[\d,]*(?:\.\d+)?)/i,
+  )
+  if (directTotal) {
+    return {
+      price_value: parseNumber(directTotal[2]),
+      currency: currencyFromSymbol(directTotal[1]),
+      price_period: 'total',
+    }
+  }
+
+  const directTotal2 = t.match(/\btotal\b[\s\S]{0,220}?([$€£])\s?(\d[\d,]*(?:\.\d+)?)/i)
+  if (directTotal2) {
+    return {
+      price_value: parseNumber(directTotal2[2]),
+      currency: currencyFromSymbol(directTotal2[1]),
+      price_period: 'total',
+    }
+  }
+
+  const symRe = /([$€£])\s?(\d[\d,]*(?:\.\d+)?)/g
+  const candidates = []
+
+  let m
+  while ((m = symRe.exec(t)) !== null) {
+    const currency = currencyFromSymbol(m[1])
+    const price_value = parseNumber(m[2])
+    if (price_value == null) continue
+
+    const start = Math.max(0, m.index - 90)
+    const end = Math.min(t.length, m.index + m[0].length + 90)
+    const ctx = t.slice(start, end)
+    const ctxLower = ctx.toLowerCase()
+
+    let score = 0
+
+    if (ctxLower.includes('total before taxes')) score += 100
+    else if (/\btotal\b/i.test(ctx)) score += 70
+
+    if (/\bper night\b/i.test(ctx) || /\/\s*night\b/i.test(ctx)) score += 50
+    else if (/\bnight\b/i.test(ctx)) score += 40
+
+    if (/\bper month\b/i.test(ctx) || /\/\s*month\b/i.test(ctx) || /\bmonthly\b/i.test(ctx))
+      score += 35
+    else if (/\bmonth\b/i.test(ctx)) score += 25
+
+    if (/additional fee/i.test(ctx)) score -= 120
+    else if (/\bfee\b/i.test(ctx)) score -= 40
+    if (/\bdeposit\b/i.test(ctx)) score -= 80
+
+    if (
+      (/\btax(es)?\b/i.test(ctx) || /\boccupancy\b/i.test(ctx)) &&
+      !ctxLower.includes('total before taxes') &&
+      !/\btotal\b/i.test(ctx)
+    ) {
+      score -= 60
+    }
+
+    candidates.push({ currency, price_value, score, ctx })
+  }
+
+  if (!candidates.length) return { price_value: null, currency: null, price_period: null }
+
+  candidates.sort((a, b) => (b.score - a.score) || (b.price_value - a.price_value))
+  const best = candidates[0]
+
+  const bestCtx = best.ctx
+  let price_period = inferPricePeriodFromText(bestCtx)
+
+  if (!price_period) return { price_value: null, currency: null, price_period: null }
+  if (best.score < 35) return { price_value: null, currency: null, price_period: null }
+
+  return { price_value: best.price_value, currency: best.currency, price_period }
 }
 
 function metaContent(selector) {
@@ -403,10 +575,38 @@ function extractListingSnapshot() {
   let price_value = jsonld.price_value ?? null
   let price_period = null
 
-  // Fallback price parsing from common text patterns on page
+  const bodyText = document.body?.innerText ?? ''
+  const domPrice = extractAirbnbPriceFromDom()
+  if (domPrice?.price_value != null) {
+    const prefer =
+      price_value == null ||
+      domPrice.price_period === 'total' ||
+      price_period == null ||
+      price_period === 'unknown'
+    if (prefer) {
+      price_value = domPrice.price_value
+      currency = currency ?? domPrice.currency
+      price_period = domPrice.price_period
+    }
+  }
+
+  const bestPrice = extractBestPriceFromBodyText(bodyText)
+  if (bestPrice.price_value != null) {
+    const prefer =
+      price_value == null ||
+      bestPrice.price_period === 'total' ||
+      price_period == null ||
+      price_period === 'unknown'
+    if (prefer) {
+      price_value = bestPrice.price_value
+      currency = currency ?? bestPrice.currency
+      price_period = bestPrice.price_period
+    }
+  }
+
+  // Final fallback price parsing
   if (price_value == null) {
-    const bodyText = document.body?.innerText ?? ''
-    const quick = parsePriceFromText(bodyText.slice(0, 5000))
+    const quick = parsePriceFromText(bodyText)
     price_value = quick.price_value
     currency = currency ?? quick.currency
     price_period = quick.price_period

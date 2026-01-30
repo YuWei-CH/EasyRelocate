@@ -4,6 +4,8 @@ import { Link } from 'react-router-dom'
 
 import MapView from '../MapView'
 import type { CompareItem, ListingSummary } from '../api'
+import { DISABLE_GOOGLE_MAPS } from '../config'
+import { loadGoogleMaps } from '../googleMaps'
 import {
   deleteListing,
   fetchCompare,
@@ -14,9 +16,17 @@ import {
 
 type SortKey = 'distance' | 'price'
 type TargetLocationMode = 'address' | 'coords'
-type TravelMode = 'DRIVING' | 'TRANSIT' | 'WALKING' | 'BICYCLING'
+type RouteMode = 'LINE' | 'DRIVING' | 'TRANSIT' | 'WALKING' | 'BICYCLING'
+type TravelMode = Exclude<RouteMode, 'LINE'>
 type RouteSummary = {
   mode: TravelMode
+  distanceText: string
+  durationText: string
+}
+
+type RouteMetric = {
+  distance_m: number
+  duration_s: number
   distanceText: string
   durationText: string
 }
@@ -55,11 +65,19 @@ function parseNumberOrNull(v: string): number | null {
   return Number.isFinite(n) ? n : null
 }
 
-function modeLabel(mode: TravelMode): string {
+function modeLabel(mode: RouteMode): string {
+  if (mode === 'LINE') return 'Line'
   if (mode === 'DRIVING') return 'Drive'
   if (mode === 'TRANSIT') return 'Bus'
   if (mode === 'WALKING') return 'Walk'
   return 'Bike'
+}
+
+function sourceLabel(source: string): string {
+  const s = source.trim().toLowerCase()
+  if (s === 'airbnb') return 'Airbnb'
+  if (s === 'blueground') return 'Blueground'
+  return source
 }
 
 function App() {
@@ -101,9 +119,15 @@ function App() {
     rough_location: string | null
     display_name: string | null
   } | null>(null)
-  const [routeMode, setRouteMode] = useState<TravelMode>('DRIVING')
+  const [routeMode, setRouteMode] = useState<RouteMode>('LINE')
   const [routeSummary, setRouteSummary] = useState<RouteSummary | null>(null)
   const [routeError, setRouteError] = useState<string | null>(null)
+
+  const [routeMetricsById, setRouteMetricsById] = useState<
+    Record<string, RouteMetric | null>
+  >({})
+  const routeMetricsCacheRef = useRef<Record<string, Record<string, RouteMetric | null>>>({})
+  const routeMetricsRequestIdRef = useRef(0)
 
   const [priceMin, setPriceMin] = useState('')
   const [priceMax, setPriceMax] = useState('')
@@ -134,6 +158,125 @@ function App() {
     setRouteSummary(null)
     setRouteError(null)
   }, [routeMode, selectedListingId])
+
+  useEffect(() => {
+    routeMetricsCacheRef.current = {}
+    setRouteMetricsById({})
+  }, [target?.id, target?.updated_at])
+
+  useEffect(() => {
+    if (!target || routeMode === 'LINE') {
+      setRouteMetricsById({})
+      return
+    }
+    const key = `${target.id}:${target.updated_at}:${routeMode}`
+    setRouteMetricsById(routeMetricsCacheRef.current[key] ?? {})
+  }, [routeMode, target])
+
+  useEffect(() => {
+    if (sortKey !== 'distance') return
+    if (!target || routeMode === 'LINE') return
+    if (DISABLE_GOOGLE_MAPS) return
+
+    let cancelled = false
+    const requestId = ++routeMetricsRequestIdRef.current
+    const cacheKey = `${target.id}:${target.updated_at}:${routeMode}`
+    const travelMode: TravelMode = routeMode
+
+    const hasOwn = (obj: object, key: string): boolean =>
+      Object.prototype.hasOwnProperty.call(obj, key)
+
+    const candidates = compareItems.filter((it) => {
+      const lat = it.listing.lat
+      const lng = it.listing.lng
+      return lat != null && lng != null && isWithinUsBounds(lat, lng)
+    })
+
+    const routeOnce = async (
+      svc: any,
+      origin: { lat: number; lng: number },
+      dest: { lat: number; lng: number },
+      mode: TravelMode,
+    ): Promise<RouteMetric | null> => {
+      return await new Promise((resolve) => {
+        svc.route(
+          {
+            origin,
+            destination: dest,
+            travelMode: mode,
+          },
+          (result: any, status: any) => {
+            if (status !== 'OK' || !result) {
+              resolve(null)
+              return
+            }
+            const leg = result.routes?.[0]?.legs?.[0]
+            const distanceText = leg?.distance?.text
+            const durationText = leg?.duration?.text
+            const distanceValue = leg?.distance?.value
+            const durationValue = leg?.duration?.value
+            if (
+              typeof distanceText === 'string' &&
+              typeof durationText === 'string' &&
+              typeof distanceValue === 'number' &&
+              typeof durationValue === 'number'
+            ) {
+              resolve({
+                distance_m: distanceValue,
+                duration_s: durationValue,
+                distanceText,
+                durationText,
+              })
+              return
+            }
+            resolve(null)
+          },
+        )
+      })
+    }
+
+    void (async () => {
+      try {
+        await loadGoogleMaps()
+      } catch {
+        return
+      }
+      if (cancelled) return
+      if (routeMetricsRequestIdRef.current !== requestId) return
+
+      const svc = new google.maps.DirectionsService()
+      const origin = { lat: target.lat, lng: target.lng }
+      const mode = travelMode
+
+      for (const it of candidates) {
+        if (cancelled) return
+        if (routeMetricsRequestIdRef.current !== requestId) return
+
+        const id = it.listing.id
+        const existing = routeMetricsCacheRef.current[cacheKey] ?? {}
+        if (hasOwn(existing, id)) continue
+
+        const metric = await routeOnce(
+          svc,
+          origin,
+          { lat: it.listing.lat!, lng: it.listing.lng! },
+          mode,
+        )
+        if (cancelled) return
+        if (routeMetricsRequestIdRef.current !== requestId) return
+
+        const next = { ...(routeMetricsCacheRef.current[cacheKey] ?? {}), [id]: metric }
+        routeMetricsCacheRef.current[cacheKey] = next
+        setRouteMetricsById(next)
+
+        await new Promise((r) => setTimeout(r, 90))
+      }
+    })()
+
+    return () => {
+      cancelled = true
+    }
+  }, [compareItems, routeMode, sortKey, target])
 
   useEffect(() => {
     if (!selectedItem) {
@@ -353,9 +496,20 @@ function App() {
     })
 
     const byDistance = (a: CompareItem, b: CompareItem) => {
-      const da = a.metrics.distance_km ?? Number.POSITIVE_INFINITY
-      const db = b.metrics.distance_km ?? Number.POSITIVE_INFINITY
-      return da - db
+      if (routeMode === 'LINE') {
+        const da = a.metrics.distance_km ?? Number.POSITIVE_INFINITY
+        const db = b.metrics.distance_km ?? Number.POSITIVE_INFINITY
+        return da - db
+      }
+      const ra = routeMetricsById[a.listing.id]
+      const rb = routeMetricsById[b.listing.id]
+      const da = ra?.duration_s ?? Number.POSITIVE_INFINITY
+      const db = rb?.duration_s ?? Number.POSITIVE_INFINITY
+      if (da !== db) return da - db
+
+      const la = a.metrics.distance_km ?? Number.POSITIVE_INFINITY
+      const lb = b.metrics.distance_km ?? Number.POSITIVE_INFINITY
+      return la - lb
     }
     const byPrice = (a: CompareItem, b: CompareItem) => {
       const pa = a.listing.price_value ?? Number.POSITIVE_INFINITY
@@ -364,7 +518,7 @@ function App() {
     }
     const sorted = [...filtered].sort(sortKey === 'price' ? byPrice : byDistance)
     return sorted
-  }, [compareItems, maxDistanceKm, priceMax, priceMin, sortKey])
+  }, [compareItems, maxDistanceKm, priceMax, priceMin, routeMetricsById, routeMode, sortKey])
 
   const mapStats = useMemo(() => {
     let mappable = 0
@@ -396,7 +550,7 @@ function App() {
             </Link>
           </h1>
           <div className="hint">
-            US-only MVP: save Airbnb listings via the extension, then compare here.
+            US-only MVP: save listings via the extension, then compare here.
           </div>
         </div>
         <div className="actions">
@@ -564,6 +718,13 @@ function App() {
               <div className="actions">
                 <button
                   type="button"
+                  className={`button${routeMode === 'LINE' ? '' : ' secondary'}`}
+                  onClick={() => setRouteMode('LINE')}
+                >
+                  Line
+                </button>
+                <button
+                  type="button"
                   className={`button${routeMode === 'DRIVING' ? '' : ' secondary'}`}
                   onClick={() => setRouteMode('DRIVING')}
                 >
@@ -593,15 +754,19 @@ function App() {
               </div>
             </div>
             <div style={{ marginTop: 8, fontSize: 12, color: '#475569' }}>
-              Select a listing to see the route (no traffic layer).
+              {routeMode === 'LINE'
+                ? 'Line mode uses straight-line distance. Select Drive/Bus/Walk/Bike to calculate commute.'
+                : 'Select a listing to see the route (no traffic layer).'}
             </div>
-            {selectedItem && routeSummary ? (
+            {routeMode !== 'LINE' && selectedItem && routeSummary ? (
               <div style={{ marginTop: 8, fontSize: 13, color: '#0f172a' }}>
                 Commute ({modeLabel(routeSummary.mode)}): {routeSummary.durationText} (
                 {routeSummary.distanceText})
               </div>
             ) : null}
-            {selectedItem && routeError ? <div className="error">{routeError}</div> : null}
+            {routeMode !== 'LINE' && selectedItem && routeError ? (
+              <div className="error">{routeError}</div>
+            ) : null}
           </section>
 
           <section className="panel">
@@ -626,7 +791,7 @@ function App() {
             </div>
             <div className="row" style={{ marginTop: 8 }}>
               <div className="field">
-                <label>Max distance (km)</label>
+                <label>Max line distance (km)</label>
                 <input
                   value={maxDistanceKm}
                   onChange={(e) => setMaxDistanceKm(e.target.value)}
@@ -687,7 +852,7 @@ function App() {
                   <div className="top">
                     <p className="title">{title}</p>
                     <div className="badges">
-                      <span className="badge">{it.listing.source}</span>
+                      <span className="badge">{sourceLabel(it.listing.source)}</span>
                       {!status.ok ? (
                         <span className="badge warn">{status.label}</span>
                       ) : null}
@@ -696,6 +861,22 @@ function App() {
                   <div className="meta">
                     <div>{formatPrice(it)}</div>
                     <div>{formatDistance(it)}</div>
+                    {sortKey === 'distance' && routeMode !== 'LINE' ? (
+                      <div>
+                        Commute ({modeLabel(routeMode)}):{' '}
+                        {(() => {
+                          if (!status.ok) return '—'
+                          const hasMetric = Object.prototype.hasOwnProperty.call(
+                            routeMetricsById,
+                            it.listing.id,
+                          )
+                          if (!hasMetric) return '…'
+                          const m = routeMetricsById[it.listing.id]
+                          if (!m) return '—'
+                          return `${m.durationText} (${m.distanceText})`
+                        })()}
+                      </div>
+                    ) : null}
                     {it.listing.location_text ? (
                       <div>Location: {it.listing.location_text}</div>
                     ) : null}
@@ -723,7 +904,7 @@ function App() {
                       rel="noreferrer"
                       onClick={(e) => e.stopPropagation()}
                     >
-                      Open on Airbnb
+                      Open on {sourceLabel(it.listing.source)}
                     </a>
                   </div>
                 </div>

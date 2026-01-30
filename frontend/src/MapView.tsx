@@ -4,7 +4,8 @@ import type { CompareItem, Target } from './api'
 import { DISABLE_GOOGLE_MAPS } from './config'
 import { loadGoogleMaps } from './googleMaps'
 
-type TravelMode = 'DRIVING' | 'TRANSIT' | 'WALKING' | 'BICYCLING'
+type RouteMode = 'LINE' | 'DRIVING' | 'TRANSIT' | 'WALKING' | 'BICYCLING'
+type TravelMode = Exclude<RouteMode, 'LINE'>
 
 type RouteSummary = {
   mode: TravelMode
@@ -21,7 +22,7 @@ type Props = {
   isPickingTarget: boolean
   onPickTarget: (lat: number, lng: number) => void
   fitKey: string
-  routeMode: TravelMode
+  routeMode: RouteMode
   onRouteSummary: (summary: RouteSummary | null) => void
   onRouteError: (message: string | null) => void
 }
@@ -275,7 +276,13 @@ export default function MapView({
 
     const it =
       selectedListingId == null ? null : items.find((x) => x.listing.id === selectedListingId)
-    if (!target || !it || it.listing.lat == null || it.listing.lng == null) {
+    if (
+      routeMode === 'LINE' ||
+      !target ||
+      !it ||
+      it.listing.lat == null ||
+      it.listing.lng == null
+    ) {
       renderer.setDirections({ routes: [] } as any)
       onRouteSummary(null)
       onRouteError(null)

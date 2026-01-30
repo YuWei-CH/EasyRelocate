@@ -187,3 +187,24 @@ def test_listings_summary_empty_then_one() -> None:
         assert data["count"] == 1
         assert data["latest_id"] == listing_id
         assert data["latest_captured_at"] == "2026-01-30T10:00:00Z"
+
+
+def test_upsert_listing_accepts_blueground_source() -> None:
+    with TestClient(main.app) as client:
+        created = client.post(
+            "/api/listings",
+            json={
+                "source": "blueground",
+                "source_url": "https://www.theblueground.com/p/furnished-apartments/sfo-1622",
+                "title": "Blueground test",
+                "currency": "USD",
+                "price_period": "unknown",
+                "captured_at": "2026-01-30T10:00:00Z",
+                "lat": 37.4052047,
+                "lng": -122.104919,
+                "location_text": "Mountain View, CA",
+            },
+        )
+        assert created.status_code == 200, created.text
+        data = created.json()
+        assert data["source"] == "blueground"

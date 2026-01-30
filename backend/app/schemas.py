@@ -52,6 +52,12 @@ class ListingOut(BaseModel):
     captured_at: datetime
 
 
+class ListingSummaryOut(BaseModel):
+    count: int
+    latest_id: str | None = None
+    latest_captured_at: datetime | None = None
+
+
 class TargetUpsert(BaseModel):
     id: str | None = None
     name: str = Field(min_length=1, max_length=256)

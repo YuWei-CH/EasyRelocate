@@ -14,6 +14,7 @@ type RouteSummary = {
 
 type Props = {
   target: Target | null
+  initialCenter: { lat: number; lng: number } | null
   items: CompareItem[]
   selectedListingId: string | null
   onSelectListingId: (id: string) => void
@@ -89,6 +90,7 @@ function markerIcon(kind: 'target' | 'listing', opts?: { selected?: boolean }) {
 
 export default function MapView({
   target,
+  initialCenter,
   items,
   selectedListingId,
   onSelectListingId,
@@ -152,10 +154,10 @@ export default function MapView({
         }
         await loadGoogleMaps()
         if (cancelled) return
-        const startCenter = target ? { lat: target.lat, lng: target.lng } : US_CENTER
+        const startCenter = initialCenter ?? (target ? { lat: target.lat, lng: target.lng } : US_CENTER)
         const map = new google.maps.Map(containerRef.current!, {
           center: startCenter,
-          zoom: target ? 11 : 4,
+          zoom: target || initialCenter ? 11 : 4,
           mapTypeControl: false,
           streetViewControl: false,
           fullscreenControl: false,

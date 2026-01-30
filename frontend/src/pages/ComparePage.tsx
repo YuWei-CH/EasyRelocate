@@ -1,10 +1,16 @@
 import '../App.css'
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 
 import MapView from '../MapView'
-import type { CompareItem } from '../api'
-import { deleteListing, fetchCompare, reverseGeocode, upsertTarget } from '../api'
+import type { CompareItem, ListingSummary } from '../api'
+import {
+  deleteListing,
+  fetchCompare,
+  fetchListingsSummary,
+  reverseGeocode,
+  upsertTarget,
+} from '../api'
 
 type SortKey = 'distance' | 'price'
 type TargetLocationMode = 'address' | 'coords'
@@ -108,6 +114,9 @@ function App() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
+  const lastListingSummaryRef = useRef<ListingSummary | null>(null)
+  const isAutoRefreshingRef = useRef(false)
+
   useEffect(() => {
     localStorage.setItem('easyrelocate_target_location_mode', targetLocationMode)
   }, [targetLocationMode])
@@ -152,19 +161,22 @@ function App() {
   }, [selectedItem])
 
   const refresh = useCallback(
-    async (opts?: { nextTargetId?: string | null }) => {
+    async (opts?: { nextTargetId?: string | null; silent?: boolean }) => {
       const id = opts?.nextTargetId ?? targetId
       if (!id) return
-      setLoading(true)
-      setError(null)
+      const silent = opts?.silent ?? false
+      if (!silent) {
+        setLoading(true)
+        setError(null)
+      }
       try {
         const res = await fetchCompare(id)
         setTarget(res.target)
         setCompareItems(res.items)
       } catch (e) {
-        setError(e instanceof Error ? e.message : String(e))
+        if (!silent) setError(e instanceof Error ? e.message : String(e))
       } finally {
-        setLoading(false)
+        if (!silent) setLoading(false)
       }
     },
     [targetId],
@@ -173,6 +185,56 @@ function App() {
   useEffect(() => {
     if (!targetId) return
     void refresh()
+  }, [refresh, targetId])
+
+  useEffect(() => {
+    if (!targetId) return
+    let cancelled = false
+
+    const checkForNewListings = async (opts?: { force?: boolean }) => {
+      if (cancelled) return
+      if (!opts?.force && document.hidden) return
+      try {
+        const summary = await fetchListingsSummary()
+        if (cancelled) return
+
+        const prev = lastListingSummaryRef.current
+        lastListingSummaryRef.current = summary
+        const changed =
+          prev != null &&
+          (prev.count !== summary.count ||
+            prev.latest_id !== summary.latest_id ||
+            prev.latest_captured_at !== summary.latest_captured_at)
+
+        if (changed && !isAutoRefreshingRef.current) {
+          isAutoRefreshingRef.current = true
+          try {
+            await refresh({ nextTargetId: targetId, silent: true })
+          } finally {
+            isAutoRefreshingRef.current = false
+          }
+        }
+      } catch {
+        // ignore (offline / backend down)
+      }
+    }
+
+    void checkForNewListings({ force: true })
+
+    const interval = window.setInterval(() => {
+      void checkForNewListings()
+    }, 7000)
+
+    const onVisibilityChange = () => {
+      if (!document.hidden) void checkForNewListings({ force: true })
+    }
+    document.addEventListener('visibilitychange', onVisibilityChange)
+
+    return () => {
+      cancelled = true
+      window.clearInterval(interval)
+      document.removeEventListener('visibilitychange', onVisibilityChange)
+    }
   }, [refresh, targetId])
 
   const onSaveTarget = async () => {
@@ -315,6 +377,14 @@ function App() {
   }, [filteredAndSorted])
 
   const fitKey = target ? `${target.id}:${target.updated_at}` : 'no-target'
+  const initialCenter = useMemo(() => {
+    if (target) return { lat: target.lat, lng: target.lng }
+    const lat = parseNumberOrNull(targetLat)
+    const lng = parseNumberOrNull(targetLng)
+    if (lat == null || lng == null) return null
+    if (!isWithinUsBounds(lat, lng)) return null
+    return { lat, lng }
+  }, [target, targetLat, targetLng])
 
   return (
     <div className="app">
@@ -665,6 +735,7 @@ function App() {
         <main className="mapWrap">
           <MapView
             target={target}
+            initialCenter={initialCenter}
             items={filteredAndSorted}
             selectedListingId={selectedListingId}
             onSelectListingId={setSelectedListingId}

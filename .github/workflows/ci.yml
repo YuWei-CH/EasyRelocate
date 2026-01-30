@@ -27,7 +27,7 @@ jobs:
           python -m pip install -r requirements.txt -r requirements-dev.txt
       - name: Run tests
         env:
-          DATABASE_URL: sqlite+pysqlite:///:memory:
+          DATABASE_URL: "sqlite+pysqlite:///:memory:"
           ENABLE_GEOCODING: "0"
         run: python -m pytest -q
 
@@ -49,4 +49,3 @@ jobs:
         run: npm ci
       - name: Build
         run: npm run build
-

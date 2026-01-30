@@ -12,7 +12,7 @@ from pydantic import (
 )
 
 
-ListingSource = Literal["airbnb"]
+ListingSource = Literal["airbnb", "blueground"]
 PricePeriod = Literal["night", "month", "total", "unknown"]
 
 

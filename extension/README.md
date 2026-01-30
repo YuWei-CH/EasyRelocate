@@ -14,12 +14,18 @@
 Note: the extension does **not** read `.env` files. Its API base URL is stored in Chrome sync storage
 and can differ from the frontend’s `VITE_API_BASE_URL` if needed.
 
-## Notes on Airbnb location
+## Notes on supported platforms
+### Airbnb
 Airbnb typically does **not** show precise street addresses. The extension tries to capture:
 - Lat/lng (when available in structured data / meta tags)
 - A rough location string (city/region)
 
 If only lat/lng is available, the backend may reverse-geocode it to a rough location (city/state).
+
+### Blueground
+Blueground property pages include a map location. The extension typically captures:
+- Lat/lng (from the page’s embedded data)
+- A location string (often including street/building + city)
 
 ## UI
 - The “Add to Compare” button is draggable; drop it where you like and it will remember the position.

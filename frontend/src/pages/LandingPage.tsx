@@ -24,7 +24,8 @@ export default function LandingPage() {
               <p>
                 EasyRelocate is a non-commercial decision-support tool for interns/students
                 relocating to a new city. Save listings while you browse (starting with
-                Airbnb), then compare them on one map with price + distance filters.
+                Airbnb and Blueground), then compare them on one map with price + distance
+                filters.
               </p>
               <div className="landingCtas">
                 <Link className="button" to="/compare">
@@ -60,7 +61,7 @@ export default function LandingPage() {
                   </div>
                   <div className="landingMockItem">
                     <span className="landingMockDot listing" />
-                    <span className="landingMockText">Airbnb · Studio · $2,750/mo</span>
+                    <span className="landingMockText">Blueground · Studio · $2,750/mo</span>
                     <span className="landingMockMeta">5.1 km</span>
                   </div>
                   <div className="landingMockItem">
@@ -90,7 +91,7 @@ export default function LandingPage() {
               <li>Run backend + frontend locally.</li>
               <li>Load the browser extension (unpacked).</li>
               <li>Set your workplace target (address or pick on map).</li>
-              <li>On Airbnb, click “Add to Compare”.</li>
+              <li>On Airbnb/Blueground, click “Add to Compare”.</li>
               <li>Return here and filter/sort on the map.</li>
             </ol>
           </div>
@@ -98,7 +99,7 @@ export default function LandingPage() {
           <div className="landingCard">
             <h2>Preliminary statements</h2>
             <ul>
-              <li>Not affiliated with Airbnb/Google/other platforms.</li>
+              <li>Not affiliated with Airbnb/Blueground/Google/other platforms.</li>
               <li>
                 Locations are best-effort and may be approximate (platforms may
                 intentionally obfuscate addresses).

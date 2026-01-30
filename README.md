@@ -3,7 +3,7 @@ EasyRelocate is an open-source, non-commercial decision-support tool for housing
 
 When relocating for an internship, research visit, or new job, housing information is often fragmented across multiple platforms, making comparison slow and error-prone. EasyRelocate helps users organize and compare housing options by focusing on what matters most: where to live, not where to book.
 
-Users collect listings while browsing platforms such as Airbnb, BlueGround, facebook group using a lightweight browser extension. EasyRelocate then aggregates the minimal, user-authorized information needed to visualize listings on a single map and compare them by price, location, and commute time to a chosen workplace.
+Users collect listings while browsing platforms such as Airbnb, Blueground, facebook group using a lightweight browser extension. EasyRelocate then aggregates the minimal, user-authorized information needed to visualize listings on a single map and compare them by price, location, and commute time to a chosen workplace.
 
 EasyRelocate does not scrape platforms server-side, host listings, process payments, or replace original marketplaces. It exists solely to help users make better relocation decisions, while respecting platform boundaries and directing all final actions back to the original sources.
 
@@ -86,7 +86,8 @@ Set your workplace target by:
 4. Select the `extension/` folder
 5. In the extension **Options**, set API base URL to `http://localhost:8000` (default)
 
-Then open an Airbnb listing detail page (`/rooms/...`) and click “Add to Compare”.
+Then open an Airbnb listing detail page (`https://www.airbnb.com/rooms/...`) or a Blueground
+property page (`https://www.theblueground.com/p/...`) and click “Add to Compare”.
 
 ## Google Maps setup (required)
 EasyRelocate uses Google Maps Platform for:

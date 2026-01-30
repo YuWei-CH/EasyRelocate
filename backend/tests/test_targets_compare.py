@@ -160,3 +160,30 @@ def test_compare_computes_distance_and_preserves_listing_order(monkeypatch) -> N
 
         assert items[1]["metrics"]["distance_km"] is None
 
+
+def test_listings_summary_empty_then_one() -> None:
+    with TestClient(main.app) as client:
+        empty = client.get("/api/listings/summary")
+        assert empty.status_code == 200, empty.text
+        assert empty.json() == {"count": 0, "latest_id": None, "latest_captured_at": None}
+
+        created = client.post(
+            "/api/listings",
+            json={
+                "source": "airbnb",
+                "source_url": "https://www.airbnb.com/rooms/summary-test",
+                "title": "Summary test",
+                "currency": "USD",
+                "price_period": "unknown",
+                "captured_at": "2026-01-30T10:00:00Z",
+            },
+        )
+        assert created.status_code == 200, created.text
+        listing_id = created.json()["id"]
+
+        after = client.get("/api/listings/summary")
+        assert after.status_code == 200, after.text
+        data = after.json()
+        assert data["count"] == 1
+        assert data["latest_id"] == listing_id
+        assert data["latest_captured_at"] == "2026-01-30T10:00:00Z"

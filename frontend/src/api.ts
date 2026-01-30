@@ -33,6 +33,12 @@ export type CompareResponse = {
   items: CompareItem[]
 }
 
+export type ListingSummary = {
+  count: number
+  latest_id: string | null
+  latest_captured_at: string | null
+}
+
 async function parseJsonOrThrow(res: Response): Promise<unknown> {
   const text = await res.text()
   if (!res.ok) {
@@ -53,6 +59,11 @@ export async function deleteListing(id: string): Promise<void> {
     method: 'DELETE',
   })
   await parseJsonOrThrow(res)
+}
+
+export async function fetchListingsSummary(): Promise<ListingSummary> {
+  const res = await fetch(apiUrl('/api/listings/summary'), { method: 'GET' })
+  return (await parseJsonOrThrow(res)) as ListingSummary
 }
 
 export async function upsertTarget(payload: {

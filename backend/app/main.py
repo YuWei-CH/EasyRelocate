@@ -8,7 +8,7 @@ from typing import Annotated
 from fastapi import Depends, FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from httpx import HTTPError
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from .db import get_db, init_db
@@ -26,6 +26,7 @@ from .schemas import (
     CompareResponse,
     GeocodeResultOut,
     ListingOut,
+    ListingSummaryOut,
     ListingUpsert,
     ReverseGeocodeOut,
     TargetOut,
@@ -166,6 +167,26 @@ def upsert_listing(payload: ListingUpsert, db: DbDep) -> Listing:
 @app.get("/api/listings", response_model=list[ListingOut])
 def list_listings(db: DbDep) -> list[Listing]:
     return list(db.scalars(select(Listing).order_by(Listing.captured_at.desc())))
+
+
+@app.get("/api/listings/summary", response_model=ListingSummaryOut)
+def listing_summary(db: DbDep) -> ListingSummaryOut:
+    total = int(db.scalar(select(func.count(Listing.id))) or 0)
+    row = db.execute(
+        select(Listing.id, Listing.captured_at)
+        .order_by(Listing.captured_at.desc())
+        .limit(1)
+    ).first()
+    latest_id: str | None = None
+    latest_captured_at: datetime | None = None
+    if row:
+        latest_id = row[0]
+        latest_captured_at = row[1]
+        if isinstance(latest_captured_at, datetime) and latest_captured_at.tzinfo is None:
+            latest_captured_at = latest_captured_at.replace(tzinfo=timezone.utc)
+    return ListingSummaryOut(
+        count=total, latest_id=latest_id, latest_captured_at=latest_captured_at
+    )
 
 
 @app.delete("/api/listings/{listing_id}")

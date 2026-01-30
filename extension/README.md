@@ -11,6 +11,9 @@
 2. Click **Extension options**
 3. Set the API base URL (default: `http://localhost:8000`)
 
+Note: the extension does **not** read `.env` files. Its API base URL is stored in Chrome sync storage
+and can differ from the frontend’s `VITE_API_BASE_URL` if needed.
+
 ## Notes on Airbnb location
 Airbnb typically does **not** show precise street addresses. The extension tries to capture:
 - Lat/lng (when available in structured data / meta tags)

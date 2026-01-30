@@ -15,6 +15,31 @@ So any street-level result we show is:
 3. **Frontend** (when a listing is selected) calls reverse geocoding to display:
    - `Approx street: <road>` (clearly labeled approximate).
 
+## Where to put API keys / env vars
+### Frontend (browser) key
+Put your browser key in the repo-root `.env` file:
+```bash
+VITE_GOOGLE_MAPS_API_KEY="YOUR_BROWSER_KEY"
+```
+
+This key is used in the browser for:
+- **Maps JavaScript API** (render the map)
+- **Directions API** (routing: Drive / Bus(Transit) / Walk / Bike)
+
+### Backend (server) key
+Put your server key in the repo-root `.env` file:
+```bash
+GOOGLE_MAPS_API_KEY="YOUR_SERVER_KEY"
+GEOCODING_PROVIDER="google"
+```
+
+This key is used server-to-server for:
+- **Geocoding API** (address → lat/lng)
+- reverse geocoding lat/lng → rough location / street name
+
+### Extension
+The extension does not read `.env` files. Set its API base URL in Chrome Extension options.
+
 ## How we extract the map pin coordinates
 File: `extension/platforms/airbnb/content.js`
 
@@ -44,15 +69,15 @@ If you see an error like:
 `Google Geocoding failed with status REQUEST_DENIED: This API is not activated on your API project`
 it means the **Geocoding API is not enabled** (or billing/key restrictions are blocking it).
 
-Set these env vars before starting the backend:
+Set these env vars in the repo-root `.env` (recommended) or your shell before starting the backend:
 ```bash
-export GOOGLE_MAPS_API_KEY="YOUR_KEY"
-export GEOCODING_PROVIDER="google"
+GOOGLE_MAPS_API_KEY="YOUR_KEY"
+GEOCODING_PROVIDER="google"
 ```
 
 Optional:
 ```bash
-export GEOCODING_COUNTRY_CODES="us"
+GEOCODING_COUNTRY_CODES="us"
 ```
 
 Then run:
@@ -66,6 +91,23 @@ uvicorn app.main:app --reload --port 8000
 - This project calls Google from the **backend** (server-to-server). If you restrict the key, prefer:
   - Restrict by **API**: allow only **Geocoding API**
   - Optionally restrict by **IP address** (for local dev, this can be inconvenient)
+
+## Google Maps UI + routing (frontend)
+EasyRelocate’s compare page uses Google Maps Platform in the browser for:
+- **Maps JavaScript API** (render the map)
+- **Directions API** (routing: Drive / Bus(Transit) / Walk / Bike)
+
+### Frontend env var
+Add this to the repo-root `.env`:
+```bash
+VITE_GOOGLE_MAPS_API_KEY="YOUR_KEY"
+```
+
+### API requirements
+If routing fails with errors like `Route failed: REQUEST_DENIED`, ensure in Google Cloud Console:
+- Billing is enabled
+- “Maps JavaScript API” is enabled
+- “Directions API” is enabled
 
 ## Local dev env vars
 Backend env vars:

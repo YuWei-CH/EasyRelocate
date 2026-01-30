@@ -8,6 +8,12 @@ import { deleteListing, fetchCompare, reverseGeocode, upsertTarget } from '../ap
 
 type SortKey = 'distance' | 'price'
 type TargetLocationMode = 'address' | 'coords'
+type TravelMode = 'DRIVING' | 'TRANSIT' | 'WALKING' | 'BICYCLING'
+type RouteSummary = {
+  mode: TravelMode
+  distanceText: string
+  durationText: string
+}
 
 function isWithinUsBounds(lat: number, lng: number): boolean {
   return lat >= 24.396308 && lat <= 49.384358 && lng >= -125.0011 && lng <= -66.93457
@@ -41,6 +47,13 @@ function parseNumberOrNull(v: string): number | null {
   if (!trimmed) return null
   const n = Number(trimmed)
   return Number.isFinite(n) ? n : null
+}
+
+function modeLabel(mode: TravelMode): string {
+  if (mode === 'DRIVING') return 'Drive'
+  if (mode === 'TRANSIT') return 'Bus'
+  if (mode === 'WALKING') return 'Walk'
+  return 'Bike'
 }
 
 function App() {
@@ -82,6 +95,9 @@ function App() {
     rough_location: string | null
     display_name: string | null
   } | null>(null)
+  const [routeMode, setRouteMode] = useState<TravelMode>('DRIVING')
+  const [routeSummary, setRouteSummary] = useState<RouteSummary | null>(null)
+  const [routeError, setRouteError] = useState<string | null>(null)
 
   const [priceMin, setPriceMin] = useState('')
   const [priceMax, setPriceMax] = useState('')
@@ -104,6 +120,11 @@ function App() {
     if (!selectedListingId) return null
     return compareItems.find((it) => it.listing.id === selectedListingId) ?? null
   }, [compareItems, selectedListingId])
+
+  useEffect(() => {
+    setRouteSummary(null)
+    setRouteError(null)
+  }, [routeMode, selectedListingId])
 
   useEffect(() => {
     if (!selectedItem) {
@@ -468,6 +489,52 @@ function App() {
           </section>
 
           <section className="panel">
+            <h2>Routing</h2>
+            <div className="row">
+              <div className="actions">
+                <button
+                  type="button"
+                  className={`button${routeMode === 'DRIVING' ? '' : ' secondary'}`}
+                  onClick={() => setRouteMode('DRIVING')}
+                >
+                  Drive
+                </button>
+                <button
+                  type="button"
+                  className={`button${routeMode === 'TRANSIT' ? '' : ' secondary'}`}
+                  onClick={() => setRouteMode('TRANSIT')}
+                >
+                  Bus
+                </button>
+                <button
+                  type="button"
+                  className={`button${routeMode === 'WALKING' ? '' : ' secondary'}`}
+                  onClick={() => setRouteMode('WALKING')}
+                >
+                  Walk
+                </button>
+                <button
+                  type="button"
+                  className={`button${routeMode === 'BICYCLING' ? '' : ' secondary'}`}
+                  onClick={() => setRouteMode('BICYCLING')}
+                >
+                  Bike
+                </button>
+              </div>
+            </div>
+            <div style={{ marginTop: 8, fontSize: 12, color: '#475569' }}>
+              Select a listing to see the route (no traffic layer).
+            </div>
+            {selectedItem && routeSummary ? (
+              <div style={{ marginTop: 8, fontSize: 13, color: '#0f172a' }}>
+                Commute ({modeLabel(routeSummary.mode)}): {routeSummary.durationText} (
+                {routeSummary.distanceText})
+              </div>
+            ) : null}
+            {selectedItem && routeError ? <div className="error">{routeError}</div> : null}
+          </section>
+
+          <section className="panel">
             <h2>Filters</h2>
             <div className="row">
               <div className="field">
@@ -571,6 +638,12 @@ function App() {
                         </span>
                       </div>
                     ) : null}
+                    {isSelected && routeSummary ? (
+                      <div>
+                        Commute ({modeLabel(routeSummary.mode)}): {routeSummary.durationText} (
+                        {routeSummary.distanceText})
+                      </div>
+                    ) : null}
                   </div>
                   <div className="cta">
                     <a
@@ -598,6 +671,9 @@ function App() {
             isPickingTarget={isPickingTarget}
             onPickTarget={onPickTarget}
             fitKey={fitKey}
+            routeMode={routeMode}
+            onRouteSummary={setRouteSummary}
+            onRouteError={setRouteError}
           />
         </main>
       </div>

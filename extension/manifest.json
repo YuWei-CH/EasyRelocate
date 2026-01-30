@@ -1,0 +1,28 @@
+{
+  "manifest_version": 3,
+  "name": "EasyRelocate",
+  "version": "0.1.0",
+  "description": "Save Airbnb listings to compare in EasyRelocate.",
+  "permissions": ["storage"],
+  "host_permissions": [
+    "http://localhost/*",
+    "http://127.0.0.1/*",
+    "https://airbnb.com/*",
+    "https://*.airbnb.com/*"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": ["https://airbnb.com/rooms/*", "https://*.airbnb.com/rooms/*"],
+      "js": ["content.js"],
+      "run_at": "document_idle"
+    }
+  ],
+  "options_page": "options.html",
+  "action": {
+    "default_title": "EasyRelocate"
+  }
+}
+

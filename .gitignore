@@ -1,0 +1,27 @@
+.DS_Store
+
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.venv/
+venv/
+env/
+
+# Backend artifacts
+backend/easyrelocate.db
+backend/*.db
+
+# Node / frontend
+node_modules/
+dist/
+.vite/
+
+# Extension build artifacts
+extension/dist/
+
+# Local Docs
+EasyRelocate_Codex_Brief.md
+

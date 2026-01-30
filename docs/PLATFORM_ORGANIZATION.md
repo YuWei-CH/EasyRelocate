@@ -49,5 +49,7 @@ If/when needed, add a thin `backend/app/platforms/` layer for:
 - Optional “source metadata” (still minimal; avoid storing full descriptions/images)
 
 ## Current status
-- The extension uses a platform folder for Airbnb at `extension/platforms/airbnb/content.js`.
-
+- Shared overlay UI lives at `extension/shared/overlay.js`.
+- Platform extraction scripts:
+  - Airbnb: `extension/platforms/airbnb/content.js`
+  - Blueground: `extension/platforms/blueground/content.js`

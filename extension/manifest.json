@@ -18,7 +18,7 @@
   "content_scripts": [
     {
       "matches": ["https://airbnb.com/rooms/*", "https://*.airbnb.com/rooms/*"],
-      "js": ["platforms/airbnb/content.js"],
+      "js": ["shared/overlay.js", "platforms/airbnb/content.js"],
       "run_at": "document_idle"
     },
     {
@@ -26,7 +26,7 @@
         "https://theblueground.com/p/*",
         "https://*.theblueground.com/p/*"
       ],
-      "js": ["platforms/blueground/content.js"],
+      "js": ["shared/overlay.js", "platforms/blueground/content.js"],
       "run_at": "document_idle"
     }
   ],

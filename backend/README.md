@@ -37,3 +37,12 @@ Env vars:
 - `GEOCODING_USER_AGENT` (default `EasyRelocate/0.1 (local dev)`)
 - `NOMINATIM_BASE_URL` (default `https://nominatim.openstreetmap.org`)
 - `GEOCODING_TIMEOUT_S` (default `6`)
+
+### Google setup requirements
+If you use Google geocoding (`GEOCODING_PROVIDER=google` or `GOOGLE_MAPS_API_KEY` is set):
+- Enable **billing** for your Google Cloud project (Google Maps Platform)
+- Enable the **Geocoding API** in Google Cloud Console for that project
+
+If you see:
+`Google Geocoding failed with status REQUEST_DENIED: This API is not activated on your API project`
+it means the Geocoding API is not enabled (or billing/key restrictions are blocking it).

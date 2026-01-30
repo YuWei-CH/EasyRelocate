@@ -35,6 +35,15 @@ Response includes:
 The UI requests this **on demand** (we don’t persist “street” in the database).
 
 ## Using Google Geocoding API (recommended for Google-maps Airbnb pages)
+### Requirements
+In Google Cloud Console, you must:
+1. **Enable billing** for the project (Google Maps Platform).
+2. **Enable the “Geocoding API”** on the same project as your API key.
+
+If you see an error like:
+`Google Geocoding failed with status REQUEST_DENIED: This API is not activated on your API project`
+it means the **Geocoding API is not enabled** (or billing/key restrictions are blocking it).
+
 Set these env vars before starting the backend:
 ```bash
 export GOOGLE_MAPS_API_KEY="YOUR_KEY"
@@ -53,6 +62,11 @@ source .venv/bin/activate
 uvicorn app.main:app --reload --port 8000
 ```
 
+### Common Google key setup notes
+- This project calls Google from the **backend** (server-to-server). If you restrict the key, prefer:
+  - Restrict by **API**: allow only **Geocoding API**
+  - Optionally restrict by **IP address** (for local dev, this can be inconvenient)
+
 ## Local dev env vars
 Backend env vars:
 - `GOOGLE_MAPS_API_KEY` (enables Google geocoding)
@@ -60,4 +74,3 @@ Backend env vars:
 - `GEOCODING_COUNTRY_CODES` (default `us`)
 - `ENABLE_GEOCODING` (default `1`)
 - `ENABLE_LISTING_GEOCODE_FALLBACK` (default `0`, if `1` will approximate coords from city/region text)
-

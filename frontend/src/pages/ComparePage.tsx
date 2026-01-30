@@ -7,6 +7,7 @@ import type { CompareItem } from '../api'
 import { deleteListing, fetchCompare, reverseGeocode, upsertTarget } from '../api'
 
 type SortKey = 'distance' | 'price'
+type TargetLocationMode = 'address' | 'coords'
 
 function isWithinUsBounds(lat: number, lng: number): boolean {
   return lat >= 24.396308 && lat <= 49.384358 && lng >= -125.0011 && lng <= -66.93457
@@ -58,6 +59,13 @@ function App() {
   const [targetLng, setTargetLng] = useState(
     localStorage.getItem('easyrelocate_target_lng') ?? '',
   )
+  const [targetLocationMode, setTargetLocationMode] = useState<TargetLocationMode>(() => {
+    const raw = localStorage.getItem('easyrelocate_target_location_mode')
+    return raw === 'coords' || raw === 'address' ? raw : 'address'
+  })
+  const [targetCoordsPreviewLocation, setTargetCoordsPreviewLocation] = useState<string | null>(
+    null,
+  )
 
   const [compareItems, setCompareItems] = useState<CompareItem[]>([])
   const [target, setTarget] = useState<{
@@ -83,6 +91,14 @@ function App() {
   const [isPickingTarget, setIsPickingTarget] = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    localStorage.setItem('easyrelocate_target_location_mode', targetLocationMode)
+  }, [targetLocationMode])
+
+  useEffect(() => {
+    if (targetLocationMode !== 'coords') setIsPickingTarget(false)
+  }, [targetLocationMode])
 
   const selectedItem = useMemo(() => {
     if (!selectedListingId) return null
@@ -142,17 +158,20 @@ function App() {
     const address = targetAddress.trim()
     const lat = parseNumberOrNull(targetLat)
     const lng = parseNumberOrNull(targetLng)
-    if ((lat == null) !== (lng == null)) {
-      setError('Lat and Lng must be provided together.')
-      return
-    }
-    if (!address && (lat == null || lng == null)) {
-      setError('Provide a target address, or both lat/lng.')
-      return
-    }
-    if (lat != null && lng != null && !isWithinUsBounds(lat, lng)) {
-      setError('Target must be within the US for now.')
-      return
+    if (targetLocationMode === 'address') {
+      if (!address) {
+        setError('Provide a target address (US).')
+        return
+      }
+    } else {
+      if (lat == null || lng == null) {
+        setError('Provide both Lat and Lng (or pick on map).')
+        return
+      }
+      if (!isWithinUsBounds(lat, lng)) {
+        setError('Target must be within the US for now.')
+        return
+      }
     }
     setLoading(true)
     setError(null)
@@ -161,10 +180,10 @@ function App() {
         id: targetId ?? undefined,
         name: targetName.trim() || 'Workplace',
       }
-      if (address) payload.address = address
-      if (lat != null && lng != null) {
-        payload.lat = lat
-        payload.lng = lng
+      if (targetLocationMode === 'address') payload.address = address
+      if (targetLocationMode === 'coords') {
+        payload.lat = lat as number
+        payload.lng = lng as number
       }
 
       const saved = await upsertTarget(payload)
@@ -175,6 +194,7 @@ function App() {
       setTargetLat(String(saved.lat))
       setTargetLng(String(saved.lng))
       setTarget(saved)
+      setTargetCoordsPreviewLocation(null)
       localStorage.setItem('easyrelocate_target_id', saved.id)
       localStorage.setItem('easyrelocate_target_name', saved.name)
       localStorage.setItem('easyrelocate_target_address', saved.address ?? '')
@@ -216,12 +236,14 @@ function App() {
 
   const onPickTarget = async (lat: number, lng: number) => {
     setIsPickingTarget(false)
+    setTargetLocationMode('coords')
     setTargetLat(lat.toFixed(6))
     setTargetLng(lng.toFixed(6))
+    setTargetCoordsPreviewLocation(null)
     try {
       const rev = await reverseGeocode({ lat, lng })
       const next = (rev.rough_location || rev.display_name || '').trim()
-      if (next) setTargetAddress(next)
+      if (next) setTargetCoordsPreviewLocation(next)
     } catch {
       // ignore (network/geocoding may be disabled)
     }
@@ -322,49 +344,126 @@ function App() {
             </div>
             <div className="row" style={{ marginTop: 8 }}>
               <div className="field" style={{ flex: 2 }}>
-                <label>Address (US)</label>
-                <input
-                  value={targetAddress}
-                  onChange={(e) => setTargetAddress(e.target.value)}
-                  placeholder="e.g. 1600 Amphitheatre Pkwy, Mountain View, CA"
-                />
+                <label>Location input</label>
+                <div style={{ display: 'flex', gap: 16, alignItems: 'center' }}>
+                  <label style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                    <input
+                      type="radio"
+                      name="targetLocationMode"
+                      checked={targetLocationMode === 'address'}
+                      onChange={() => {
+                        setTargetLocationMode('address')
+                        setError(null)
+                      }}
+                    />
+                    Address (US)
+                  </label>
+                  <label style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                    <input
+                      type="radio"
+                      name="targetLocationMode"
+                      checked={targetLocationMode === 'coords'}
+                      onChange={() => {
+                        setTargetLocationMode('coords')
+                        setError(null)
+                      }}
+                    />
+                    Lat/Lng
+                  </label>
+                </div>
               </div>
             </div>
-            <div className="row" style={{ marginTop: 8 }}>
-              <div className="field">
-                <label>Lat</label>
-                <input
-                  value={targetLat}
-                  onChange={(e) => setTargetLat(e.target.value)}
-                  placeholder="37.422"
-                />
-              </div>
-              <div className="field">
-                <label>Lng</label>
-                <input
-                  value={targetLng}
-                  onChange={(e) => setTargetLng(e.target.value)}
-                  placeholder="-122.084"
-                />
-              </div>
-              <div className="actions">
-                <button
-                  className="button secondary"
-                  onClick={() => setIsPickingTarget((v) => !v)}
-                  disabled={loading}
-                  title="Pick target by clicking the map"
-                >
-                  {isPickingTarget ? 'Click map…' : 'Pick on map'}
-                </button>
-                <button
-                  className="button"
-                  onClick={() => void onSaveTarget()}
-                  disabled={loading}
-                >
-                  Save
-                </button>
-              </div>
-            </div>
+            {targetLocationMode === 'address' ? (
+              <>
+                <div className="row" style={{ marginTop: 8 }}>
+                  <div className="field" style={{ flex: 2 }}>
+                    <label>Address (US)</label>
+                    <input
+                      value={targetAddress}
+                      onChange={(e) => setTargetAddress(e.target.value)}
+                      placeholder="e.g. 1600 Amphitheatre Pkwy, Mountain View, CA"
+                    />
+                  </div>
+                </div>
+                {target ? (
+                  <div className="row" style={{ marginTop: 8 }}>
+                    <div className="field">
+                      <label>Resolved Lat</label>
+                      <input value={target.lat.toFixed(6)} disabled />
+                    </div>
+                    <div className="field">
+                      <label>Resolved Lng</label>
+                      <input value={target.lng.toFixed(6)} disabled />
+                    </div>
+                  </div>
+                ) : null}
+                <div className="row" style={{ marginTop: 8 }}>
+                  <div className="actions">
+                    <button
+                      className="button"
+                      onClick={() => void onSaveTarget()}
+                      disabled={loading}
+                    >
+                      Save
+                    </button>
+                  </div>
+                </div>
+              </>
+            ) : (
+              <>
+                <div className="row" style={{ marginTop: 8 }}>
+                  <div className="field">
+                    <label>Lat</label>
+                    <input
+                      value={targetLat}
+                      onChange={(e) => {
+                        setTargetLat(e.target.value)
+                        setTargetCoordsPreviewLocation(null)
+                      }}
+                      placeholder="37.422"
+                    />
+                  </div>
+                  <div className="field">
+                    <label>Lng</label>
+                    <input
+                      value={targetLng}
+                      onChange={(e) => {
+                        setTargetLng(e.target.value)
+                        setTargetCoordsPreviewLocation(null)
+                      }}
+                      placeholder="-122.084"
+                    />
+                  </div>
+                  <div className="actions">
+                    <button
+                      className="button secondary"
+                      onClick={() => setIsPickingTarget((v) => !v)}
+                      disabled={loading}
+                      title="Pick target by clicking the map"
+                    >
+                      {isPickingTarget ? 'Click map…' : 'Pick on map'}
+                    </button>
+                    <button
+                      className="button"
+                      onClick={() => void onSaveTarget()}
+                      disabled={loading}
+                    >
+                      Save
+                    </button>
+                  </div>
+                </div>
+                <div className="row" style={{ marginTop: 8 }}>
+                  <div className="field" style={{ flex: 2 }}>
+                    <label>Approx location (from coords)</label>
+                    <input
+                      value={targetCoordsPreviewLocation ?? target?.address ?? ''}
+                      disabled
+                      placeholder="Pick on map to estimate the rough location"
+                    />
+                  </div>
+                </div>
+              </>
+            )}
             {error ? <div className="error">{error}</div> : null}
           </section>
 

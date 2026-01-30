@@ -19,6 +19,18 @@ GEOCODING_PROVIDER = os.getenv("GEOCODING_PROVIDER", "").strip().lower()
 GOOGLE_MAPS_API_KEY = os.getenv("GOOGLE_MAPS_API_KEY")
 
 
+class GeocodingError(RuntimeError):
+    pass
+
+
+class GeocodingConfigError(GeocodingError):
+    pass
+
+
+class GeocodingProviderError(GeocodingError):
+    pass
+
+
 @dataclass(frozen=True)
 class GeocodeResult:
     display_name: str
@@ -59,7 +71,7 @@ def _google_country_component() -> str | None:
 
 def _google_geocode_address(query: str, *, limit: int) -> list[GeocodeResult]:
     if not GOOGLE_MAPS_API_KEY:
-        return []
+        raise GeocodingConfigError("GOOGLE_MAPS_API_KEY is not set")
     q = query.strip()
     if not q:
         return []
@@ -78,9 +90,12 @@ def _google_geocode_address(query: str, *, limit: int) -> list[GeocodeResult]:
     data = res.json()
 
     if not isinstance(data, dict):
-        return []
-    if data.get("status") != "OK":
-        return []
+        raise GeocodingProviderError("Google Geocoding returned an invalid response")
+    status = data.get("status")
+    if status != "OK":
+        error_message = data.get("error_message")
+        extra = f": {error_message}" if isinstance(error_message, str) else ""
+        raise GeocodingProviderError(f"Google Geocoding failed with status {status}{extra}")
     results = data.get("results")
     if not isinstance(results, list):
         return []
@@ -110,7 +125,7 @@ def _google_geocode_address(query: str, *, limit: int) -> list[GeocodeResult]:
 
 def _google_reverse_geocode(lat: float, lng: float) -> ReverseGeocodeResult:
     if not GOOGLE_MAPS_API_KEY:
-        return ReverseGeocodeResult(display_name=None, address=None)
+        raise GeocodingConfigError("GOOGLE_MAPS_API_KEY is not set")
 
     params: dict[str, str] = {"latlng": f"{lat},{lng}", "key": GOOGLE_MAPS_API_KEY}
     res = httpx.get(
@@ -122,9 +137,12 @@ def _google_reverse_geocode(lat: float, lng: float) -> ReverseGeocodeResult:
     data = res.json()
 
     if not isinstance(data, dict):
-        return ReverseGeocodeResult(display_name=None, address=None)
-    if data.get("status") != "OK":
-        return ReverseGeocodeResult(display_name=None, address=None)
+        raise GeocodingProviderError("Google Geocoding returned an invalid response")
+    status = data.get("status")
+    if status != "OK":
+        error_message = data.get("error_message")
+        extra = f": {error_message}" if isinstance(error_message, str) else ""
+        raise GeocodingProviderError(f"Google Geocoding failed with status {status}{extra}")
     results = data.get("results")
     if not isinstance(results, list) or not results:
         return ReverseGeocodeResult(display_name=None, address=None)

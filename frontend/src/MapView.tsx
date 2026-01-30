@@ -39,6 +39,34 @@ const OSM_RASTER_STYLE: StyleSpecification = {
   layers: [{ id: 'osm', type: 'raster', source: 'osm' }],
 }
 
+const HOUSE_ICON_SVG = `
+<svg class="markerIcon" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+  <path
+    d="M3 11.2L12 4l9 7.2V20a1 1 0 0 1-1 1h-5v-7H9v7H4a1 1 0 0 1-1-1v-8.8Z"
+    stroke="currentColor"
+    stroke-width="2"
+    stroke-linejoin="round"
+  />
+</svg>
+`.trim()
+
+const LAPTOP_ICON_SVG = `
+<svg class="markerIcon" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+  <path
+    d="M6 5h12a2 2 0 0 1 2 2v8H4V7a2 2 0 0 1 2-2Z"
+    stroke="currentColor"
+    stroke-width="2"
+    stroke-linejoin="round"
+  />
+  <path
+    d="M2 17h20v1a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2v-1Z"
+    stroke="currentColor"
+    stroke-width="2"
+    stroke-linejoin="round"
+  />
+</svg>
+`.trim()
+
 function isWithinUsBounds(lat: number, lng: number): boolean {
   return (
     lat >= US_BOUNDS[0][1] &&
@@ -127,7 +155,9 @@ export default function MapView({
     // create markers
     for (const p of points) {
       const el = document.createElement('div')
-      el.className = `marker ${p.kind}`
+      const isSelected = p.kind === 'listing' && p.id === selectedListingId
+      el.className = `marker ${p.kind}${isSelected ? ' selected' : ''}`
+      el.innerHTML = p.kind === 'target' ? LAPTOP_ICON_SVG : HOUSE_ICON_SVG
       el.style.cursor = p.kind === 'listing' && !isPickingTarget ? 'pointer' : 'default'
 
       const marker = new maplibregl.Marker({ element: el })
@@ -152,7 +182,7 @@ export default function MapView({
       map.fitBounds(bounds, { padding: 48, maxZoom: 13, duration: 450 })
       hasFitRef.current = fitKey
     }
-  }, [fitKey, isPickingTarget, onSelectListingId, points])
+  }, [fitKey, isPickingTarget, onSelectListingId, points, selectedListingId])
 
   useEffect(() => {
     const map = mapRef.current

@@ -64,10 +64,13 @@ class TargetUpsert(BaseModel):
         has_lat = self.lat is not None
         has_lng = self.lng is not None
         has_address = self.address is not None and self.address.strip() != ""
+        has_coords = has_lat and has_lng
 
         if has_lat != has_lng:
             raise ValueError("lat and lng must be provided together")
-        if not (has_address or (has_lat and has_lng)):
+        if has_address and has_coords:
+            raise ValueError("Provide either address, or both lat and lng (not both)")
+        if not (has_address or has_coords):
             raise ValueError("Provide either address, or both lat and lng")
         return self
 

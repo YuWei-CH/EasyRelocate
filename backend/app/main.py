@@ -16,6 +16,8 @@ from .distance import haversine_km
 from .geocoding import (
     approx_street_from_address,
     geocode_address,
+    GeocodingConfigError,
+    GeocodingProviderError,
     reverse_geocode,
     rough_location_from_address,
 )
@@ -101,7 +103,7 @@ def upsert_listing(payload: ListingUpsert, db: DbDep) -> Listing:
                     if candidates:
                         existing.lat = existing.lat or candidates[0].lat
                         existing.lng = existing.lng or candidates[0].lng
-                except HTTPError:
+                except (HTTPError, GeocodingConfigError, GeocodingProviderError):
                     pass
 
         if (
@@ -114,7 +116,7 @@ def upsert_listing(payload: ListingUpsert, db: DbDep) -> Listing:
                 rough = rough_location_from_address(rev.address)
                 if rough:
                     existing.location_text = rough
-            except HTTPError:
+            except (HTTPError, GeocodingConfigError, GeocodingProviderError):
                 pass
 
         db.add(existing)
@@ -145,7 +147,7 @@ def upsert_listing(payload: ListingUpsert, db: DbDep) -> Listing:
                 if candidates:
                     listing.lat = listing.lat or candidates[0].lat
                     listing.lng = listing.lng or candidates[0].lng
-            except HTTPError:
+            except (HTTPError, GeocodingConfigError, GeocodingProviderError):
                 pass
     if listing.location_text is None and listing.lat is not None and listing.lng is not None:
         try:
@@ -153,7 +155,7 @@ def upsert_listing(payload: ListingUpsert, db: DbDep) -> Listing:
             rough = rough_location_from_address(rev.address)
             if rough:
                 listing.location_text = rough
-        except HTTPError:
+        except (HTTPError, GeocodingConfigError, GeocodingProviderError):
             pass
     db.add(listing)
     db.commit()
@@ -184,11 +186,17 @@ def upsert_target(payload: TargetUpsert, db: DbDep) -> Target:
     lat = payload.lat
     lng = payload.lng
     address = payload.address.strip() if isinstance(payload.address, str) else None
+    if address == "":
+        address = None
 
     if lat is None or lng is None:
         try:
             candidates = geocode_address(address or "", limit=1)
         except HTTPError as e:
+            raise HTTPException(status_code=502, detail=str(e)) from e
+        except GeocodingConfigError as e:
+            raise HTTPException(status_code=500, detail=str(e)) from e
+        except GeocodingProviderError as e:
             raise HTTPException(status_code=502, detail=str(e)) from e
         if not candidates:
             raise HTTPException(status_code=404, detail="Address not found")
@@ -244,6 +252,10 @@ def api_geocode(
         results = geocode_address(query, limit=limit)
     except HTTPError as e:
         raise HTTPException(status_code=502, detail=str(e)) from e
+    except GeocodingConfigError as e:
+        raise HTTPException(status_code=500, detail=str(e)) from e
+    except GeocodingProviderError as e:
+        raise HTTPException(status_code=502, detail=str(e)) from e
     return [GeocodeResultOut(display_name=r.display_name, lat=r.lat, lng=r.lng) for r in results]
 
 
@@ -256,6 +268,10 @@ def api_reverse_geocode(
     try:
         rev = reverse_geocode(lat, lng, zoom=zoom)
     except HTTPError as e:
+        raise HTTPException(status_code=502, detail=str(e)) from e
+    except GeocodingConfigError as e:
+        raise HTTPException(status_code=500, detail=str(e)) from e
+    except GeocodingProviderError as e:
         raise HTTPException(status_code=502, detail=str(e)) from e
     return ReverseGeocodeOut(
         display_name=rev.display_name,

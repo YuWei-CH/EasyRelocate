@@ -21,6 +21,7 @@ dist/
 
 # Env files (do not commit secrets)
 .env
+.env.server
 .env.local
 .env.*.local
 frontend/.env

@@ -1,5 +1,5 @@
 api.easyrelocate.net {
   encode gzip
-  reverse_proxy backend:8000
+  reverse_proxy 127.0.0.1:8000
 }
 

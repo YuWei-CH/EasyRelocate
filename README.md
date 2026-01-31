@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="docs/assets/easyrelocate-logo.svg" alt="EasyRelocate logo" width="160" />
+</p>
+
 # EasyRelocate
 EasyRelocate is an open-source, non-commercial decision-support tool for housing relocation.
 

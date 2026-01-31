@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="docs/assets/easyrelocate-logo.svg" alt="EasyRelocate logo" width="160" />
+  <img src="assets/images/easyrelocate-logo.svg" alt="EasyRelocate logo" width="160" />
 </p>
 
 # EasyRelocate

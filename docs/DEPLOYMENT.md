@@ -138,48 +138,101 @@ Security note:
 This is the lowest “monthly bill” option if you already have hardware, but you must handle:
 patching, backups, and uptime.
 
-### B1) Run Postgres + backend on the server
+### B0) Your chosen domain + FRP ports
 
-Recommended:
-- Use Docker Compose.
-- Keep Postgres private (not exposed to the internet).
-- Expose only the reverse proxy (80/443).
+You chose:
+- Backend domain: `api.easyrelocate.net`
+- Tunnel: `frp` (you can forward any port)
+- Tokens: self-serve tokens enabled (`ENABLE_PUBLIC_WORKSPACE_ISSUE=1`)
 
-Minimum you need:
-- A public backend URL (e.g. `https://api.example.com`)
-- `DATABASE_URL` pointing at the Postgres container
+For Caddy automatic HTTPS, you should forward:
+- **remote 80 → server 80** (for ACME HTTP-01 challenge)
+- **remote 443 → server 443** (for HTTPS traffic)
 
-Example `DATABASE_URL` (Compose network):
-```text
-postgresql+psycopg://easyrelocate_user:DB_PASSWORD@postgres:5432/easyrelocate
+### B1) Prepare the server (Ubuntu miniPC)
+
+1. Install Docker + Docker Compose plugin on the server.
+2. Clone the repo:
+```bash
+git clone https://github.com/YuWei-CH/EasyRelocate.git
+cd EasyRelocate
 ```
 
-### B2) Reverse proxy + HTTPS
+### B2) Create server env file
 
-Use Caddy or Nginx to terminate HTTPS and proxy to the backend container.
-
-If you use FRP:
-- Prefer mapping FRP to 443 with TLS termination at the server (Caddy/Nginx).
-- If FRP terminates TLS upstream, ensure the backend sees correct headers and set a strict CORS allowlist.
-
-### B3) Vercel config
-
-Set:
-```text
-VITE_API_BASE_URL=https://api.example.com
+Create `.env.server` (do not commit it):
+```bash
+cp .env.server.example .env.server
 ```
 
-And on the backend:
-```text
-CORS_ALLOW_ORIGINS=https://your-vercel-domain.vercel.app,https://your-custom-domain.com
+Edit `.env.server`:
+- Set `POSTGRES_PASSWORD` (strong password)
+- Set `CORS_ALLOW_ORIGINS` to include your Vercel domain(s)
+- Keep `ENABLE_PUBLIC_WORKSPACE_ISSUE=1` if you want onboarding to auto-issue tokens
+
+### B3) Start Postgres + backend + HTTPS proxy (Docker Compose)
+
+On the server:
+```bash
+docker compose -f docker-compose.server.yml --env-file .env.server up -d --build
 ```
 
-### B4) Backups (required)
+Or use the helper script:
+```bash
+ENV_FILE=.env.server bash deploy/server-deploy.sh
+```
+
+Check:
+```bash
+docker compose -f docker-compose.server.yml --env-file .env.server ps
+```
+
+### B4) Configure FRP
+
+On your **FRP server** (public machine), ensure ports 80/443 are open.
+
+On your **miniPC**, configure `frpc` to forward:
+- `api.easyrelocate.net:80` → `miniPC:80`
+- `api.easyrelocate.net:443` → `miniPC:443`
+
+Once the DNS for `api.easyrelocate.net` points to your FRP server and the tunnel is active,
+visit:
+- `https://api.easyrelocate.net/api/health`
+
+You should see:
+```json
+{"status":"ok"}
+```
+
+### B5) Deploy frontend to Vercel
+
+Set Vercel env vars:
+```text
+VITE_API_BASE_URL=https://api.easyrelocate.net
+VITE_GOOGLE_MAPS_API_KEY=YOUR_BROWSER_KEY
+```
+
+After deploy, open the web app and go through onboarding.
+
+### B6) Postgres backups (required)
 
 At minimum:
 - daily `pg_dump`
 - keep 7–30 days of backups
 - periodically test restore
+
+### B7) Security notes
+
+- Do **not** expose Postgres to the public internet (Compose keeps it internal by default).
+- Keep a strict `CORS_ALLOW_ORIGINS` allowlist (your Vercel domain + any custom domain).
+- Treat workspace tokens as passwords.
+
+### Files in this repo (Option B)
+
+- `docker-compose.server.yml` — Postgres + backend + Caddy
+- `deploy/Caddyfile` — HTTPS reverse proxy for `api.easyrelocate.net`
+- `.env.server.example` — server env template
+- `deploy/server-deploy.sh` — helper to start the stack
 
 ## Troubleshooting
 

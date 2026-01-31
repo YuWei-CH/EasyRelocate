@@ -1,0 +1,45 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-easyrelocate}
+      POSTGRES_USER: ${POSTGRES_USER:-easyrelocate}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env.server}
+    volumes:
+      - easyrelocate_postgres:/var/lib/postgresql/data
+    restart: unless-stopped
+
+  backend:
+    ports: ["8000:8000"]
+    build:
+      context: ./backend
+    environment:
+      DATABASE_URL: ${DATABASE_URL:?Set DATABASE_URL in .env.server}
+      CORS_ALLOW_ORIGINS: ${CORS_ALLOW_ORIGINS:?Set CORS_ALLOW_ORIGINS in .env.server}
+      ENABLE_PUBLIC_WORKSPACE_ISSUE: ${ENABLE_PUBLIC_WORKSPACE_ISSUE:-1}
+      PUBLIC_WORKSPACE_TTL_DAYS: ${PUBLIC_WORKSPACE_TTL_DAYS:-30}
+      GOOGLE_MAPS_API_KEY: ${GOOGLE_MAPS_API_KEY:-}
+      GEOCODING_PROVIDER: ${GEOCODING_PROVIDER:-}
+      ENABLE_GEOCODING: ${ENABLE_GEOCODING:-1}
+      OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
+      OPENROUTER_MODEL: ${OPENROUTER_MODEL:-}
+    depends_on:
+      - postgres
+    restart: unless-stopped
+
+  caddy:
+    image: caddy:2-alpine
+    volumes:
+      - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - backend
+    restart: unless-stopped
+    network_mode: host
+
+volumes:
+  easyrelocate_postgres:
+  caddy_data:
+  caddy_config:
+

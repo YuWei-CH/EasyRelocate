@@ -7,13 +7,13 @@ EasyRelocate is an open-source, non-commercial decision-support tool for housing
 
 When relocating for an internship, research visit, or new job, housing information is often fragmented across multiple platforms, making comparison slow and error-prone. EasyRelocate helps users organize and compare housing options by focusing on what matters most: where to live, not where to book.
 
-Users collect listings while browsing platforms such as Airbnb, Blueground, Facebook Group using a lightweight browser extension (only support Google Chrom now). EasyRelocate then aggregates the minimal, user-authorized information needed to visualize listings on a single map and compare them by price, location, and commute time to a chosen workplace.
+Users collect listings while browsing platforms such as Airbnb, Blueground, Facebook Group using a lightweight browser extension (only supports Google Chrome for now). EasyRelocate then aggregates the minimal, user-authorized information needed to visualize listings on a single map and compare them by price, location, and commute time to a chosen workplace.
 
 EasyRelocate does not scrape platforms server-side, host listings, process payments, or replace original marketplaces. It exists solely to help users make better relocation decisions, while respecting platform boundaries and directing all final actions back to the original sources.
 
 ## Repo structure
-- `backend/`: FastAPI + SQLite API
-- `frontend/`: React (Vite) web app (Google Maps JS map + routing, US-only for now)
+- `backend/`: FastAPI API (SQLite for local dev; Postgres supported via `DATABASE_URL`)
+- `frontend/`: React (Vite) web app (Google Maps JS map + routing)
 - `extension/`: Chrome extension (Manifest V3) for user-side extraction
 
 ## Configuration (API keys & env vars)
@@ -46,20 +46,44 @@ Backend reads standard env vars (auto-loads repo-root `.env` on startup):
 GOOGLE_MAPS_API_KEY="YOUR_SERVER_KEY"
 GEOCODING_PROVIDER="google"
 
-# Rrequired for the extension’s “Add selected post” feature
+# Required for the extension’s “Add selected post” feature
 OPENROUTER_API_KEY="YOUR_OPENROUTER_KEY"
 OPENROUTER_MODEL="z-ai/glm-4.5-air:free"
 
 # Optional
 ENABLE_GEOCODING="1"
 DATABASE_URL="sqlite:///easyrelocate.db"
+
+# Optional (comma-separated)
+# CORS_ALLOW_ORIGINS="https://your-vercel-app.vercel.app,https://easyrelocate.yourdomain.com"
 ```
+
+## Workspaces (tokens, no user accounts)
+EasyRelocate uses **admin-created workspace tokens** instead of a user login system. All API calls (except `/api/health`) require:
+`Authorization: Bearer <workspace_token>`.
+
+Create a token (local dev / admin):
+```bash
+cd backend
+python scripts/create_workspace.py
+```
+
+Optional (self-serve onboarding): enable `ENABLE_PUBLIC_WORKSPACE_ISSUE=1` on the backend, then the web UI can issue a 30-day token automatically via `POST /api/workspaces/issue` (see `docs/DEPLOYMENT.md`).
+
+Then paste `workspace_token` into:
+- Web app: Compare page → **Workspace** panel → Save
+- Chrome extension: Extension options → **Workspace token** → Save
 
 ### Chrome Extension (for developer)
 The extension does not read `.env` files. Configure its API base URL in Chrome:
-Extension → **Details** → **Extension options** → “API base URL” (default: `http://127.0.0.1:8000`).
+Extension → **Details** → **Extension options** → “API base URL” + “Workspace token”.
 
 ## Local dev
+
+### Quick start (backend + frontend)
+```bash
+./easyDeploy.sh --db local
+```
 
 ### 1) Backend API
 ```bash
@@ -84,7 +108,7 @@ Open: `http://127.0.0.1:5173` (landing page)
 Compare app: `http://127.0.0.1:5173/#/compare`
 
 Set your workplace target by:
-- Typing an address (US) and clicking **Save**, or
+- Typing an address and clicking **Save**, or
 - Clicking **Pick on map** and then clicking the map, then **Save**
 
 ### 3) Browser extension (Chrome)
@@ -113,3 +137,4 @@ See: `docs/GOOGLE_MAPS_APPROX_LOCATION.md`
 - Platform organization: `docs/PLATFORM_ORGANIZATION.md`
 - Google maps “approx street”: `docs/GOOGLE_MAPS_APPROX_LOCATION.md`
 - OpenRouter LLM extraction: `docs/OPENROUTER_LLM_EXTRACTION.md`
+- Deployment runbook (GCP managed + self-hosted): `docs/DEPLOYMENT.md`

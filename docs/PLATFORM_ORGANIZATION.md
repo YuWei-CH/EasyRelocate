@@ -59,3 +59,11 @@ If/when needed, add a thin `backend/app/platforms/` layer for:
 - Selected-post extraction:
   - Extension context menu: `extension/background.js`
   - Backend LLM endpoint: `POST /api/listings/from_text`
+
+## Multi-user (workspaces)
+EasyRelocate supports multiple users via **separate workspaces**, identified by an **admin-created token**.
+All backend endpoints (except `GET /api/health`) require:
+`Authorization: Bearer <workspace_token>`.
+
+Deployment guidance (Vercel + Cloud Run + Cloud SQL Postgres):
+`docs/DEPLOYMENT.md`.

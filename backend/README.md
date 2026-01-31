@@ -3,6 +3,21 @@
 ## Prereqs
 - Python 3.11+
 
+## Auth (workspaces, no user accounts)
+EasyRelocate uses **admin-created workspace tokens** instead of a user login system.
+
+All API calls (except `GET /api/health`) require:
+`Authorization: Bearer <workspace_token>`.
+
+Create a token:
+```bash
+cd backend
+python scripts/create_workspace.py
+```
+
+Optional (self-serve onboarding): set `ENABLE_PUBLIC_WORKSPACE_ISSUE=1` and the web UI can call
+`POST /api/workspaces/issue` to create a 30-day token (protect this endpoint in production).
+
 ## Setup
 ```bash
 python -m venv .venv
@@ -29,7 +44,7 @@ API docs:
 
 ## Geocoding (Nominatim / OpenStreetMap)
 The backend can:
-- Geocode a target address → lat/lng (US-only by default)
+- Geocode a target address → lat/lng
 - Reverse-geocode lat/lng → a rough location string (city/state)
 
 Endpoints:
@@ -39,13 +54,14 @@ Endpoints:
 Env vars:
 - `ENABLE_GEOCODING` (default `1`)
 - `ENABLE_LISTING_GEOCODE_FALLBACK` (default `0`, if `1` will approximate coords from listing city/region)
-- `GEOCODING_COUNTRY_CODES` (default `us`)
+- `GEOCODING_COUNTRY_CODES` (optional; defaults are provider-specific)
 - `GEOCODING_PROVIDER` (optional: `google` or `nominatim`)
 - `GOOGLE_MAPS_API_KEY` (optional; if set, geocoding defaults to Google)
 - `GEOCODING_USER_AGENT` (default `EasyRelocate/0.1 (local dev)`)
 - `NOMINATIM_BASE_URL` (default `https://nominatim.openstreetmap.org`)
 - `GEOCODING_TIMEOUT_S` (default `6`)
- - `DATABASE_URL` (optional; defaults to `backend/easyrelocate.db`)
+- `DATABASE_URL` (optional; defaults to `backend/easyrelocate.db`)
+- `CORS_ALLOW_ORIGINS` (optional; comma-separated allowlist for browsers)
 
 ### Google setup requirements
 If you use Google geocoding (`GEOCODING_PROVIDER=google` or `GOOGLE_MAPS_API_KEY` is set):
@@ -69,3 +85,7 @@ Env vars:
 - `OPENROUTER_TIMEOUT_S` (optional)
 
 Details: `docs/OPENROUTER_LLM_EXTRACTION.md`
+
+## Production database (Cloud SQL Postgres)
+Cloud Run instances are ephemeral. For production, set `DATABASE_URL` to Postgres (Cloud SQL).
+See: `docs/DEPLOYMENT.md`.

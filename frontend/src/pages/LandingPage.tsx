@@ -6,8 +6,21 @@ export default function LandingPage() {
   return (
     <div className="landing">
       <header className="landingHeader">
-        <div className="landingBrand">
-          EasyRelocate <span className="landingBrandTag">US-only MVP</span>
+        <div className="landingHeaderInner">
+          <Link className="landingBrandButton" to="/">
+            <img
+              className="landingBrandLogo"
+              src="/easyrelocate-logo.svg"
+              alt=""
+              aria-hidden="true"
+            />
+            EasyRelocate
+          </Link>
+          <div className="landingHeaderActions">
+            <Link className="button secondary" to="/compare">
+              Start comparing
+            </Link>
+          </div>
         </div>
       </header>
 
@@ -24,8 +37,8 @@ export default function LandingPage() {
               <p>
                 EasyRelocate is a non-commercial decision-support tool for interns/students
                 relocating to a new city. Save listings while you browse (starting with
-                Airbnb, Blueground and LLM extraction method), then compare them on one map with price + distance
-                filters.
+                Airbnb, Blueground, and selected posts via LLM), then compare them on one map with
+                price + distance filters.
               </p>
               <div className="landingCtas">
                 <Link className="button" to="/compare">
@@ -41,7 +54,7 @@ export default function LandingPage() {
                 </a>
               </div>
               <div className="landingNote">
-                US-only MVP for now. Listing locations may be approximate.
+                Listing locations may be approximate. Verify details on the original source.
               </div>
             </div>
 

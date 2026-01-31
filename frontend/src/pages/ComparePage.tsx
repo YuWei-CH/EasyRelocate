@@ -547,11 +547,17 @@ function App() {
         <div>
           <h1>
             <Link className="brandLink" to="/">
+              <img
+                className="brandLogo"
+                src="/easyrelocate-logo.svg"
+                alt=""
+                aria-hidden="true"
+              />
               EasyRelocate
             </Link>
           </h1>
           <div className="hint">
-            US-only MVP: save listings via the extension, then compare here.
+            Save listings via the extension, then compare here.
           </div>
         </div>
         <div className="actions">

@@ -36,7 +36,7 @@ Put these in the **repo-root** `.env`:
 - `OPENROUTER_APP_URL` / `OPENROUTER_APP_NAME` (optional; attribution headers)
 
 ## Model choice
-Default is `z-ai/glm-4.5-air:free` to keep costs low while we iterate on the MVP.
+Default is `z-ai/glm-4.5-air:free` to keep costs low while we iterate.
 
 If extraction quality isn’t good enough, switch to a paid model by setting `OPENROUTER_MODEL`
 in `.env` (restart backend after changes).
@@ -51,4 +51,3 @@ The backend prompt is designed to:
   - Example: `US-101 & McLaughlin Ave, San Jose, CA 95121, USA`
 
 Implementation reference: `backend/app/openrouter.py`.
-

@@ -7,7 +7,7 @@ EasyRelocate is an open-source, non-commercial decision-support tool for housing
 
 When relocating for an internship, research visit, or new job, housing information is often fragmented across multiple platforms, making comparison slow and error-prone. EasyRelocate helps users organize and compare housing options by focusing on what matters most: where to live, not where to book.
 
-Users collect listings while browsing platforms such as Airbnb, Blueground, facebook group using a lightweight browser extension. EasyRelocate then aggregates the minimal, user-authorized information needed to visualize listings on a single map and compare them by price, location, and commute time to a chosen workplace.
+Users collect listings while browsing platforms such as Airbnb, Blueground, Facebook Group using a lightweight browser extension (only support Google Chrom now). EasyRelocate then aggregates the minimal, user-authorized information needed to visualize listings on a single map and compare them by price, location, and commute time to a chosen workplace.
 
 EasyRelocate does not scrape platforms server-side, host listings, process payments, or replace original marketplaces. It exists solely to help users make better relocation decisions, while respecting platform boundaries and directing all final actions back to the original sources.
 
@@ -42,11 +42,11 @@ VITE_API_BASE_URL="http://127.0.0.1:8000"
 ### Backend (FastAPI / server)
 Backend reads standard env vars (auto-loads repo-root `.env` on startup):
 ```bash
-# Optional (server key; used for /api/geocode and /api/reverse_geocode)
+# Server key; used for /api/geocode and /api/reverse_geocode
 GOOGLE_MAPS_API_KEY="YOUR_SERVER_KEY"
 GEOCODING_PROVIDER="google"
 
-# Optional (required for the extension’s “Add selected post” feature)
+# Rrequired for the extension’s “Add selected post” feature
 OPENROUTER_API_KEY="YOUR_OPENROUTER_KEY"
 OPENROUTER_MODEL="z-ai/glm-4.5-air:free"
 
@@ -55,11 +55,11 @@ ENABLE_GEOCODING="1"
 DATABASE_URL="sqlite:///easyrelocate.db"
 ```
 
-### Extension (Chrome)
+### Chrome Extension (for developer)
 The extension does not read `.env` files. Configure its API base URL in Chrome:
 Extension → **Details** → **Extension options** → “API base URL” (default: `http://127.0.0.1:8000`).
 
-## Local dev (MVP)
+## Local dev
 
 ### 1) Backend API
 ```bash

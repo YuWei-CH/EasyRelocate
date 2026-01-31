@@ -138,3 +138,4 @@ See: `docs/GOOGLE_MAPS_APPROX_LOCATION.md`
 - Google maps “approx street”: `docs/GOOGLE_MAPS_APPROX_LOCATION.md`
 - OpenRouter LLM extraction: `docs/OPENROUTER_LLM_EXTRACTION.md`
 - Deployment runbook (GCP managed + self-hosted): `docs/DEPLOYMENT.md`
+- Privacy policy: `docs/PRIVACY.md`

@@ -5,12 +5,21 @@ from pathlib import Path
 from typing import Generator
 
 from sqlalchemy import create_engine
-from sqlalchemy.orm import DeclarativeBase, Session, sessionmaker
+from sqlalchemy.orm import Session, sessionmaker
 from sqlalchemy.pool import StaticPool
 
 
-class Base(DeclarativeBase):
-    pass
+try:
+    from sqlalchemy.orm import DeclarativeBase  # type: ignore[attr-defined]
+
+    class Base(DeclarativeBase):
+        pass
+
+except ImportError:  # pragma: no cover
+    # SQLAlchemy <2.0 compatibility (some dev/test environments still ship 1.4).
+    from sqlalchemy.orm import declarative_base
+
+    Base = declarative_base()
 
 
 def _default_database_url() -> str:

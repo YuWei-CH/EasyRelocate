@@ -82,6 +82,9 @@ function sourceLabel(source: string): string {
 }
 
 function App() {
+  const [workspaceToken, setWorkspaceToken] = useState(
+    localStorage.getItem('easyrelocate_workspace_token') ?? '',
+  )
   const [targetId, setTargetId] = useState<string | null>(
     localStorage.getItem('easyrelocate_target_id'),
   )
@@ -325,6 +328,18 @@ function App() {
     },
     [targetId],
   )
+
+  const saveWorkspaceToken = useCallback(async () => {
+    const t = workspaceToken.trim()
+    if (!t) {
+      localStorage.removeItem('easyrelocate_workspace_token')
+      setError('Workspace token cleared. Paste a workspace token to use the app.')
+      return
+    }
+    localStorage.setItem('easyrelocate_workspace_token', t)
+    setError(null)
+    if (targetId) await refresh({ nextTargetId: targetId })
+  }, [refresh, targetId, workspaceToken])
 
   useEffect(() => {
     if (!targetId) return
@@ -582,6 +597,23 @@ function App() {
 
       <div className="content">
         <aside className="sidebar">
+          <section className="panel">
+            <h2>Workspace</h2>
+            <div className="row">
+              <div className="field" style={{ flex: 1 }}>
+                <label>Workspace token</label>
+                <input
+                  value={workspaceToken}
+                  onChange={(e) => setWorkspaceToken(e.target.value)}
+                  placeholder="er_ws_..."
+                />
+              </div>
+              <button className="button secondary" onClick={() => void saveWorkspaceToken()}>
+                Save
+              </button>
+            </div>
+          </section>
+
           <section className="panel">
             <h2>Target (Workplace)</h2>
             <div className="row">

@@ -8,7 +8,7 @@ from contextlib import asynccontextmanager
 from datetime import datetime, timezone
 from typing import Annotated
 
-from fastapi import Depends, FastAPI, HTTPException, Query
+from fastapi import Depends, FastAPI, HTTPException, Query, Header
 from fastapi.middleware.cors import CORSMiddleware
 from httpx import HTTPError
 from sqlalchemy import func, select
@@ -24,12 +24,13 @@ from .geocoding import (
     reverse_geocode,
     rough_location_from_address,
 )
-from .models import Listing, Target
+from .models import Listing, Target, Workspace
 from .openrouter import (
     extract_housing_post,
     OpenRouterConfigError,
     OpenRouterProviderError,
 )
+from .workspaces import hash_workspace_token
 from .schemas import (
     CompareResponse,
     GeocodeResultOut,
@@ -60,14 +61,18 @@ async def lifespan(_: FastAPI):
 
 app = FastAPI(title="EasyRelocate API", version="0.1.0", lifespan=lifespan)
 
+_default_allowed_origins = [
+    "http://127.0.0.1:5173",
+    "http://localhost:5173",
+    "http://127.0.0.1:3000",
+    "http://localhost:3000",
+]
+_cors_from_env = [o.strip() for o in os.getenv("CORS_ALLOW_ORIGINS", "").split(",") if o.strip()]
+_allowed_origins = _cors_from_env or _default_allowed_origins
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:5173",
-        "http://127.0.0.1:5173",
-        "http://localhost:3000",
-        "http://127.0.0.1:3000",
-    ],
+    allow_origins=_allowed_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -75,6 +80,7 @@ app.add_middleware(
 
 
 DbDep = Annotated[Session, Depends(get_db)]
+AuthHeader = Annotated[str | None, Header(alias="Authorization")]
 
 _RE_HTTP_URL = re.compile(r"^https?://", re.IGNORECASE)
 
@@ -92,9 +98,39 @@ def health() -> dict[str, str]:
     return {"status": "ok"}
 
 
-@app.post("/api/listings", response_model=ListingOut)
-def upsert_listing(payload: ListingUpsert, db: DbDep) -> Listing:
-    existing = db.scalar(select(Listing).where(Listing.source_url == payload.source_url))
+def _extract_bearer_token(auth: str | None) -> str | None:
+    if not auth:
+        return None
+    a = auth.strip()
+    if not a:
+        return None
+    if a.lower().startswith("bearer "):
+        token = a[7:].strip()
+        return token or None
+    return None
+
+
+def get_workspace(db: DbDep, authorization: AuthHeader) -> Workspace:
+    token = _extract_bearer_token(authorization)
+    if not token:
+        raise HTTPException(status_code=401, detail="Missing workspace token")
+
+    token_hash = hash_workspace_token(token)
+    ws = db.scalar(select(Workspace).where(Workspace.token_hash == token_hash))
+    if not ws:
+        raise HTTPException(status_code=401, detail="Invalid workspace token")
+    return ws
+
+
+WorkspaceDep = Annotated[Workspace, Depends(get_workspace)]
+
+
+def _upsert_listing_for_workspace(db: Session, ws: Workspace, payload: ListingUpsert) -> Listing:
+    existing = db.scalar(
+        select(Listing).where(
+            Listing.workspace_id == ws.id, Listing.source_url == payload.source_url
+        )
+    )
     data = payload.model_dump(exclude_unset=True)
     captured_at = data.get("captured_at") or _utcnow()
 
@@ -145,6 +181,7 @@ def upsert_listing(payload: ListingUpsert, db: DbDep) -> Listing:
         return existing
 
     listing = Listing(
+        workspace_id=ws.id,
         source=payload.source,
         source_url=payload.source_url,
         title=payload.title,
@@ -183,8 +220,13 @@ def upsert_listing(payload: ListingUpsert, db: DbDep) -> Listing:
     return listing
 
 
+@app.post("/api/listings", response_model=ListingOut)
+def upsert_listing(payload: ListingUpsert, db: DbDep, ws: WorkspaceDep) -> Listing:
+    return _upsert_listing_for_workspace(db, ws, payload)
+
+
 @app.post("/api/listings/from_text", response_model=ListingOut)
-def create_listing_from_text(payload: ListingFromTextIn, db: DbDep) -> Listing:
+def create_listing_from_text(payload: ListingFromTextIn, db: DbDep, ws: WorkspaceDep) -> Listing:
     if not _RE_HTTP_URL.match(payload.page_url):
         raise HTTPException(status_code=400, detail="page_url must start with http:// or https://")
 
@@ -227,19 +269,28 @@ def create_listing_from_text(payload: ListingFromTextIn, db: DbDep) -> Listing:
         captured_at=_utcnow(),
     )
 
-    return upsert_listing(listing_payload, db)
+    return _upsert_listing_for_workspace(db, ws, listing_payload)
 
 
 @app.get("/api/listings", response_model=list[ListingOut])
-def list_listings(db: DbDep) -> list[Listing]:
-    return list(db.scalars(select(Listing).order_by(Listing.captured_at.desc())))
+def list_listings(db: DbDep, ws: WorkspaceDep) -> list[Listing]:
+    return list(
+        db.scalars(
+            select(Listing)
+            .where(Listing.workspace_id == ws.id)
+            .order_by(Listing.captured_at.desc())
+        )
+    )
 
 
 @app.get("/api/listings/summary", response_model=ListingSummaryOut)
-def listing_summary(db: DbDep) -> ListingSummaryOut:
-    total = int(db.scalar(select(func.count(Listing.id))) or 0)
+def listing_summary(db: DbDep, ws: WorkspaceDep) -> ListingSummaryOut:
+    total = int(
+        db.scalar(select(func.count(Listing.id)).where(Listing.workspace_id == ws.id)) or 0
+    )
     row = db.execute(
         select(Listing.id, Listing.captured_at)
+        .where(Listing.workspace_id == ws.id)
         .order_by(Listing.captured_at.desc())
         .limit(1)
     ).first()
@@ -256,8 +307,10 @@ def listing_summary(db: DbDep) -> ListingSummaryOut:
 
 
 @app.delete("/api/listings/{listing_id}")
-def delete_listing(listing_id: str, db: DbDep) -> dict[str, bool]:
-    listing = db.scalar(select(Listing).where(Listing.id == listing_id))
+def delete_listing(listing_id: str, db: DbDep, ws: WorkspaceDep) -> dict[str, bool]:
+    listing = db.scalar(
+        select(Listing).where(Listing.workspace_id == ws.id, Listing.id == listing_id)
+    )
     if not listing:
         raise HTTPException(status_code=404, detail="Listing not found")
     db.delete(listing)
@@ -266,7 +319,7 @@ def delete_listing(listing_id: str, db: DbDep) -> dict[str, bool]:
 
 
 @app.post("/api/targets", response_model=TargetOut)
-def upsert_target(payload: TargetUpsert, db: DbDep) -> Target:
+def upsert_target(payload: TargetUpsert, db: DbDep, ws: WorkspaceDep) -> Target:
     now = _utcnow()
     data = payload.model_dump(exclude_unset=True)
 
@@ -298,9 +351,11 @@ def upsert_target(payload: TargetUpsert, db: DbDep) -> Target:
 
     target: Target | None = None
     if payload.id:
-        target = db.scalar(select(Target).where(Target.id == payload.id))
+        target = db.scalar(select(Target).where(Target.workspace_id == ws.id, Target.id == payload.id))
     if not target:
-        target = db.scalar(select(Target).order_by(Target.updated_at.desc()))
+        target = db.scalar(
+            select(Target).where(Target.workspace_id == ws.id).order_by(Target.updated_at.desc())
+        )
 
     if target:
         if "name" in data:
@@ -315,6 +370,7 @@ def upsert_target(payload: TargetUpsert, db: DbDep) -> Target:
         return target
 
     create_kwargs = {
+        "workspace_id": ws.id,
         "name": payload.name,
         "address": address,
         "lat": lat,
@@ -332,6 +388,7 @@ def upsert_target(payload: TargetUpsert, db: DbDep) -> Target:
 
 @app.get("/api/geocode", response_model=list[GeocodeResultOut])
 def api_geocode(
+    ws: WorkspaceDep,
     query: str = Query(min_length=1, max_length=512),
     limit: int = Query(default=5, ge=1, le=10),
 ) -> list[GeocodeResultOut]:
@@ -348,6 +405,7 @@ def api_geocode(
 
 @app.get("/api/reverse_geocode", response_model=ReverseGeocodeOut)
 def api_reverse_geocode(
+    ws: WorkspaceDep,
     lat: float = Query(),
     lng: float = Query(),
     zoom: int = Query(default=14, ge=0, le=18),
@@ -368,29 +426,38 @@ def api_reverse_geocode(
 
 
 @app.get("/api/targets", response_model=list[TargetOut])
-def list_targets(db: DbDep) -> list[Target]:
-    return list(db.scalars(select(Target).order_by(Target.updated_at.desc())))
+def list_targets(db: DbDep, ws: WorkspaceDep) -> list[Target]:
+    return list(
+        db.scalars(select(Target).where(Target.workspace_id == ws.id).order_by(Target.updated_at.desc()))
+    )
 
 
 @app.get("/api/compare", response_model=CompareResponse)
 def compare(
     db: DbDep,
+    ws: WorkspaceDep,
     target_id: str | None = Query(default=None),
 ) -> CompareResponse:
     target: Target | None = None
     if target_id:
-        target = db.scalar(select(Target).where(Target.id == target_id))
+        target = db.scalar(select(Target).where(Target.workspace_id == ws.id, Target.id == target_id))
         if not target:
             raise HTTPException(status_code=404, detail="Target not found")
     else:
-        target = db.scalar(select(Target).order_by(Target.updated_at.desc()))
+        target = db.scalar(
+            select(Target).where(Target.workspace_id == ws.id).order_by(Target.updated_at.desc())
+        )
         if not target:
             raise HTTPException(
                 status_code=404,
                 detail="No target set yet. POST /api/targets first.",
             )
 
-    listings = list(db.scalars(select(Listing).order_by(Listing.captured_at.desc())))
+    listings = list(
+        db.scalars(
+            select(Listing).where(Listing.workspace_id == ws.id).order_by(Listing.captured_at.desc())
+        )
+    )
     items = []
     for listing in listings:
         distance_km: float | None = None

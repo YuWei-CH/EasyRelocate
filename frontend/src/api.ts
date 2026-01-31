@@ -1,5 +1,20 @@
 import { apiUrl } from './config'
 
+function getWorkspaceToken(): string | null {
+  try {
+    const raw = localStorage.getItem('easyrelocate_workspace_token')
+    const t = (raw ?? '').trim()
+    return t ? t : null
+  } catch {
+    return null
+  }
+}
+
+function authHeaders(): Record<string, string> {
+  const token = getWorkspaceToken()
+  return token ? { Authorization: `Bearer ${token}` } : {}
+}
+
 export type Listing = {
   id: string
   source: string
@@ -57,12 +72,13 @@ async function parseJsonOrThrow(res: Response): Promise<unknown> {
 export async function deleteListing(id: string): Promise<void> {
   const res = await fetch(apiUrl(`/api/listings/${encodeURIComponent(id)}`), {
     method: 'DELETE',
+    headers: authHeaders(),
   })
   await parseJsonOrThrow(res)
 }
 
 export async function fetchListingsSummary(): Promise<ListingSummary> {
-  const res = await fetch(apiUrl('/api/listings/summary'), { method: 'GET' })
+  const res = await fetch(apiUrl('/api/listings/summary'), { method: 'GET', headers: authHeaders() })
   return (await parseJsonOrThrow(res)) as ListingSummary
 }
 
@@ -75,7 +91,7 @@ export async function upsertTarget(payload: {
 }): Promise<Target> {
   const res = await fetch(apiUrl('/api/targets'), {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', ...authHeaders() },
     body: JSON.stringify(payload),
   })
   return (await parseJsonOrThrow(res)) as Target
@@ -84,7 +100,7 @@ export async function upsertTarget(payload: {
 export async function fetchCompare(targetId?: string): Promise<CompareResponse> {
   const url = new URL(apiUrl('/api/compare'))
   if (targetId) url.searchParams.set('target_id', targetId)
-  const res = await fetch(url.toString(), { method: 'GET' })
+  const res = await fetch(url.toString(), { method: 'GET', headers: authHeaders() })
   return (await parseJsonOrThrow(res)) as CompareResponse
 }
 
@@ -101,7 +117,7 @@ export async function geocodeAddress(
   const url = new URL(apiUrl('/api/geocode'))
   url.searchParams.set('query', query)
   if (opts?.limit != null) url.searchParams.set('limit', String(opts.limit))
-  const res = await fetch(url.toString(), { method: 'GET' })
+  const res = await fetch(url.toString(), { method: 'GET', headers: authHeaders() })
   return (await parseJsonOrThrow(res)) as GeocodeResult[]
 }
 
@@ -120,6 +136,6 @@ export async function reverseGeocode(opts: {
   url.searchParams.set('lat', String(opts.lat))
   url.searchParams.set('lng', String(opts.lng))
   if (opts.zoom != null) url.searchParams.set('zoom', String(opts.zoom))
-  const res = await fetch(url.toString(), { method: 'GET' })
+  const res = await fetch(url.toString(), { method: 'GET', headers: authHeaders() })
   return (await parseJsonOrThrow(res)) as ReverseGeocodeResponse
 }

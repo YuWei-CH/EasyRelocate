@@ -187,13 +187,47 @@ Check:
 docker compose -f docker-compose.server.yml --env-file .env.server ps
 ```
 
+Host networking note (Caddy on miniPC):
+- If Docker port publishing on the host is blocked or unreliable, run Caddy with `network_mode: host`
+  and map backend to `127.0.0.1:8000` in `deploy/Caddyfile`.
+- In that setup, ensure the backend service exposes `8000:8000` so Caddy can reach it.
+
 ### B4) Configure FRP
 
-On your **FRP server** (public machine), ensure ports 80/443 are open.
+On your **FRP server** (public machine), ensure ports 80/443 are open and vhost mode is enabled.
 
 On your **miniPC**, configure `frpc` to forward:
 - `api.easyrelocate.net:80` → `miniPC:80`
 - `api.easyrelocate.net:443` → `miniPC:443`
+
+#### FRP (TOML) example
+
+**frps.toml** (server):
+```toml
+bindPort = 7000
+vhostHTTPPort = 80
+vhostHTTPSPort = 443
+```
+
+**frpc.toml** (client, frp 0.67+):
+```toml
+serverAddr = "YOUR_FRP_SERVER_IP"
+serverPort = 7000
+
+[[proxies]]
+name = "api-http"
+type = "http"
+localIP = "127.0.0.1"
+localPort = 80
+customDomains = ["api.easyrelocate.net"]
+
+[[proxies]]
+name = "api-https"
+type = "https"
+localIP = "127.0.0.1"
+localPort = 443
+customDomains = ["api.easyrelocate.net"]
+```
 
 Once the DNS for `api.easyrelocate.net` points to your FRP server and the tunnel is active,
 visit:
@@ -247,6 +281,14 @@ At minimum:
 
 ### CORS errors in browser console
 - Set backend `CORS_ALLOW_ORIGINS` to include your frontend origin(s).
+
+### CORS errors from Chrome extension (blocked by CORS)
+- Add your extension origin to `CORS_ALLOW_ORIGINS`:
+  - `chrome-extension://<EXTENSION_ID>`
+- Example:
+```text
+CORS_ALLOW_ORIGINS=https://easyrelocate.net,https://www.easyrelocate.net,chrome-extension://cgghcabahinelloofmjkjfkiafpphlpj
+```
 
 ## Local vs cloud DB (dev convenience)
 

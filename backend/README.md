@@ -24,8 +24,8 @@ in the repo root and put backend env vars there.
 You can still override via shell exports if needed.
 
 API docs:
-- Swagger UI: `http://localhost:8000/docs`
-- OpenAPI: `http://localhost:8000/openapi.json`
+- Swagger UI: `http://127.0.0.1:8000/docs`
+- OpenAPI: `http://127.0.0.1:8000/openapi.json`
 
 ## Geocoding (Nominatim / OpenStreetMap)
 The backend can:
@@ -55,3 +55,17 @@ If you use Google geocoding (`GEOCODING_PROVIDER=google` or `GOOGLE_MAPS_API_KEY
 If you see:
 `Google Geocoding failed with status REQUEST_DENIED: This API is not activated on your API project`
 it means the Geocoding API is not enabled (or billing/key restrictions are blocking it).
+
+## LLM extraction (OpenRouter)
+The backend can extract monthly rent + location from user-selected text (for Facebook groups, etc.).
+
+Endpoint:
+- `POST /api/listings/from_text` (requires `OPENROUTER_API_KEY`)
+
+Env vars:
+- `OPENROUTER_API_KEY` (required)
+- `OPENROUTER_MODEL` (optional; default `z-ai/glm-4.5-air:free`)
+- `OPENROUTER_BASE_URL` (optional)
+- `OPENROUTER_TIMEOUT_S` (optional)
+
+Details: `docs/OPENROUTER_LLM_EXTRACTION.md`

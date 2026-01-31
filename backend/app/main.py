@@ -1,6 +1,9 @@
 from __future__ import annotations
 
 import os
+import re
+import hashlib
+from urllib.parse import urlsplit, urlunsplit
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone
 from typing import Annotated
@@ -22,10 +25,16 @@ from .geocoding import (
     rough_location_from_address,
 )
 from .models import Listing, Target
+from .openrouter import (
+    extract_housing_post,
+    OpenRouterConfigError,
+    OpenRouterProviderError,
+)
 from .schemas import (
     CompareResponse,
     GeocodeResultOut,
     ListingOut,
+    ListingFromTextIn,
     ListingSummaryOut,
     ListingUpsert,
     ReverseGeocodeOut,
@@ -66,6 +75,16 @@ app.add_middleware(
 
 
 DbDep = Annotated[Session, Depends(get_db)]
+
+_RE_HTTP_URL = re.compile(r"^https?://", re.IGNORECASE)
+
+
+def _build_post_source_url(page_url: str, text: str) -> str:
+    parts = urlsplit(page_url)
+    base = urlunsplit((parts.scheme, parts.netloc, parts.path, parts.query, ""))
+    normalized = " ".join(text.split()).strip().lower()
+    h = hashlib.sha1(normalized.encode("utf-8")).hexdigest()[:12]
+    return f"{base}#easyrelocate_post={h}"
 
 
 @app.get("/api/health")
@@ -162,6 +181,53 @@ def upsert_listing(payload: ListingUpsert, db: DbDep) -> Listing:
     db.commit()
     db.refresh(listing)
     return listing
+
+
+@app.post("/api/listings/from_text", response_model=ListingOut)
+def create_listing_from_text(payload: ListingFromTextIn, db: DbDep) -> Listing:
+    if not _RE_HTTP_URL.match(payload.page_url):
+        raise HTTPException(status_code=400, detail="page_url must start with http:// or https://")
+
+    try:
+        extracted = extract_housing_post(payload.text, page_url=payload.page_url)
+    except OpenRouterConfigError as e:
+        raise HTTPException(status_code=500, detail=str(e)) from e
+    except OpenRouterProviderError as e:
+        raise HTTPException(status_code=502, detail=str(e)) from e
+    except HTTPError as e:
+        raise HTTPException(status_code=502, detail=str(e)) from e
+
+    source_url = _build_post_source_url(payload.page_url, payload.text)
+    title = extracted.title
+    if title is None:
+        first = " ".join(payload.text.split())[:80].strip()
+        title = first or None
+
+    lat = None
+    lng = None
+    if extracted.location_text:
+        try:
+            candidates = geocode_address(extracted.location_text, limit=1)
+            if candidates:
+                lat = candidates[0].lat
+                lng = candidates[0].lng
+        except (HTTPError, GeocodingConfigError, GeocodingProviderError):
+            pass
+
+    listing_payload = ListingUpsert(
+        source="post",
+        source_url=source_url,
+        title=title,
+        price_value=extracted.price_value,
+        currency=extracted.currency or "USD",
+        price_period="month" if extracted.price_value is not None else "unknown",
+        lat=lat,
+        lng=lng,
+        location_text=extracted.location_text,
+        captured_at=_utcnow(),
+    )
+
+    return upsert_listing(listing_payload, db)
 
 
 @app.get("/api/listings", response_model=list[ListingOut])

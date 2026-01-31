@@ -2,15 +2,17 @@
   "manifest_version": 3,
   "name": "EasyRelocate",
   "version": "0.1.0",
-  "description": "Save listings (Airbnb, Blueground) to compare in EasyRelocate.",
-  "permissions": ["storage"],
+  "description": "Save listings (Airbnb, Blueground) and selected posts to compare in EasyRelocate.",
+  "permissions": ["storage", "contextMenus"],
   "host_permissions": [
     "http://localhost/*",
     "http://127.0.0.1/*",
     "https://airbnb.com/*",
     "https://*.airbnb.com/*",
     "https://theblueground.com/*",
-    "https://*.theblueground.com/*"
+    "https://*.theblueground.com/*",
+    "https://facebook.com/*",
+    "https://*.facebook.com/*"
   ],
   "background": {
     "service_worker": "background.js"
@@ -27,6 +29,14 @@
         "https://*.theblueground.com/p/*"
       ],
       "js": ["shared/overlay.js", "platforms/blueground/content.js"],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": [
+        "https://facebook.com/groups/*",
+        "https://*.facebook.com/groups/*"
+      ],
+      "js": ["shared/overlay.js", "platforms/facebook/content.js"],
       "run_at": "document_idle"
     }
   ],

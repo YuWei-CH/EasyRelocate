@@ -28,8 +28,8 @@ Frontend variables must start with `VITE_`:
 # Required (browser key)
 VITE_GOOGLE_MAPS_API_KEY="YOUR_BROWSER_KEY"
 
-# Optional (defaults to http://localhost:8000)
-VITE_API_BASE_URL="http://localhost:8000"
+# Optional (defaults to http://127.0.0.1:8000)
+VITE_API_BASE_URL="http://127.0.0.1:8000"
 
 # Optional (useful for CI / keyless dev)
 # VITE_DISABLE_GOOGLE_MAPS="1"
@@ -42,6 +42,10 @@ Backend reads standard env vars (auto-loads repo-root `.env` on startup):
 GOOGLE_MAPS_API_KEY="YOUR_SERVER_KEY"
 GEOCODING_PROVIDER="google"
 
+# Optional (required for the extension’s “Add selected post” feature)
+OPENROUTER_API_KEY="YOUR_OPENROUTER_KEY"
+OPENROUTER_MODEL="z-ai/glm-4.5-air:free"
+
 # Optional
 ENABLE_GEOCODING="1"
 DATABASE_URL="sqlite:///easyrelocate.db"
@@ -49,7 +53,7 @@ DATABASE_URL="sqlite:///easyrelocate.db"
 
 ### Extension (Chrome)
 The extension does not read `.env` files. Configure its API base URL in Chrome:
-Extension → **Details** → **Extension options** → “API base URL” (default: `http://localhost:8000`).
+Extension → **Details** → **Extension options** → “API base URL” (default: `http://127.0.0.1:8000`).
 
 ## Local dev (MVP)
 
@@ -62,7 +66,7 @@ pip install -r requirements.txt
 uvicorn app.main:app --reload --port 8000
 ```
 
-API docs: `http://localhost:8000/docs`
+API docs: `http://127.0.0.1:8000/docs`
 
 ### 2) Frontend
 ```bash
@@ -71,9 +75,9 @@ npm install
 npm run dev
 ```
 
-Open: `http://localhost:5173` (landing page)
+Open: `http://127.0.0.1:5173` (landing page)
 
-Compare app: `http://localhost:5173/#/compare`
+Compare app: `http://127.0.0.1:5173/#/compare`
 
 Set your workplace target by:
 - Typing an address (US) and clicking **Save**, or
@@ -84,10 +88,14 @@ Set your workplace target by:
 2. Enable **Developer mode**
 3. Click **Load unpacked**
 4. Select the `extension/` folder
-5. In the extension **Options**, set API base URL to `http://localhost:8000` (default)
+5. In the extension **Options**, set API base URL to `http://127.0.0.1:8000` (default)
 
 Then open an Airbnb listing detail page (`https://www.airbnb.com/rooms/...`) or a Blueground
 property page (`https://www.theblueground.com/p/...`) and click “Add to Compare”.
+
+To save a housing post from anywhere (e.g., Facebook group):
+1. Highlight/select the post text
+2. Right click → **EasyRelocate: Add selected post**
 
 ## Google Maps setup (required)
 EasyRelocate uses Google Maps Platform for:
@@ -100,3 +108,4 @@ See: `docs/GOOGLE_MAPS_APPROX_LOCATION.md`
 ## Docs
 - Platform organization: `docs/PLATFORM_ORGANIZATION.md`
 - Google maps “approx street”: `docs/GOOGLE_MAPS_APPROX_LOCATION.md`
+- OpenRouter LLM extraction: `docs/OPENROUTER_LLM_EXTRACTION.md`

@@ -205,8 +205,12 @@ function easyRelocateCreateOverlay(opts) {
     btn.style.opacity = '0.75'
     try {
       const payload = opts.extractListingSnapshot()
+      const messageType =
+        typeof opts.messageType === 'string' && opts.messageType.trim()
+          ? opts.messageType.trim()
+          : 'EASYRELOCATE_ADD_LISTING'
       const res = await new Promise((resolve) => {
-        chrome.runtime.sendMessage({ type: 'EASYRELOCATE_ADD_LISTING', payload }, (resp) =>
+        chrome.runtime.sendMessage({ type: messageType, payload }, (resp) =>
           resolve(resp),
         )
       })
@@ -246,4 +250,3 @@ async function easyRelocateBootOverlay(opts) {
 
 globalThis.EasyRelocateOverlay = globalThis.EasyRelocateOverlay || {}
 globalThis.EasyRelocateOverlay.boot = easyRelocateBootOverlay
-

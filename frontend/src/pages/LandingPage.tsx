@@ -17,7 +17,18 @@ export default function LandingPage() {
             EasyRelocate
           </Link>
           <div className="landingHeaderActions">
-            <Link className="button secondary" to="/compare">
+            <Link className="button secondary" to="/onboarding/extension">
+              Help
+            </Link>
+            <a
+              className="button secondary"
+              href="https://github.com/YuWei-CH/EasyRelocate/issues"
+              target="_blank"
+              rel="noreferrer"
+            >
+              GitHub Issues
+            </a>
+            <Link className="button" to="/onboarding/extension">
               Start comparing
             </Link>
           </div>
@@ -41,7 +52,7 @@ export default function LandingPage() {
                 price + distance filters.
               </p>
               <div className="landingCtas">
-                <Link className="button" to="/compare">
+                <Link className="button" to="/onboarding/extension">
                   Start comparing
                 </Link>
                 <a
@@ -101,14 +112,12 @@ export default function LandingPage() {
           <div className="landingCard">
             <h2>How to use</h2>
             <ol>
-              <li>Run backend + frontend locally.</li>
-              <li>Load the browser extension (unpacked).</li>
-              <li>Set your workplace target (address or pick on map).</li>
+              <li>Install the browser extension.</li>
+              <li>Get a workspace token (shown after the disclaimer).</li>
+              <li>Open the compare map and set your target (address or pick on map).</li>
               <li>On Airbnb/Blueground, click “Add to Compare”.</li>
-              <li>
-                For posts (e.g., Facebook groups), select post text and click “Add Selected Post”.
-              </li>
-              <li>Return here and filter/sort on the map.</li>
+              <li>For posts (e.g., Facebook groups), select text and “Add selected post”.</li>
+              <li>Compare by price + distance, and optionally commute time.</li>
             </ol>
           </div>
 

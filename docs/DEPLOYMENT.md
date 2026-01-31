@@ -26,6 +26,8 @@ Set these as Cloud Run environment variables:
 - `GOOGLE_MAPS_API_KEY` (optional, for server-side geocoding)
 - `OPENROUTER_API_KEY` (optional, for “Add selected post” extraction)
 - `OPENROUTER_MODEL` (optional; default `z-ai/glm-4.5-air:free`)
+- `ENABLE_PUBLIC_WORKSPACE_ISSUE` (optional; enable anonymous 30-day tokens)
+- `PUBLIC_WORKSPACE_TTL_DAYS` (optional; default `30`)
 
 #### `DATABASE_URL` examples
 
@@ -68,6 +70,14 @@ VITE_API_BASE_URL=https://easyrelocate-api-xxxxx-uc.a.run.app
 EasyRelocate does not ship a user signup/login flow. Instead, you (admin) create “workspace tokens”
 and distribute them to users. All reads/writes are scoped to a workspace.
 
+If you prefer a self-serve onboarding flow (no admin distribution), you can enable:
+- `ENABLE_PUBLIC_WORKSPACE_ISSUE=1`
+- `PUBLIC_WORKSPACE_TTL_DAYS=30`
+
+Then the web UI can call `POST /api/workspaces/issue` to generate a new 30-day token.
+
+Production warning: this endpoint is public — protect it with rate limiting / bot protection.
+
 ### Create a token (recommended workflow)
 
 Run the script against the same `DATABASE_URL` your backend uses:
@@ -87,7 +97,7 @@ Treat `workspace_token` like a password.
 ### Where users paste the token
 
 - **Web app**: Compare page → **Workspace** panel → paste token → Save.
-- **Chrome extension**: Extension options → **Workspace token** → Save.
+- **Chrome extension**: Extension options → **Workspace token** → Save (use the same token).
 
 All API calls send `Authorization: Bearer <workspace_token>`.
 
@@ -96,3 +106,12 @@ All API calls send `Authorization: Bearer <workspace_token>`.
 - Cloud Run instances are ephemeral; use Postgres in production (avoid relying on local SQLite files).
 - You’ll eventually want migrations (e.g., Alembic) instead of `create_all`, but `create_all` is fine
   for early versions.
+
+## Local vs cloud DB (dev convenience)
+If you want to keep both DB URLs in one `.env`, you can set:
+- `DATABASE_URL_LOCAL=...`
+- `DATABASE_URL_CLOUD=...`
+- `EASYRELOCATE_DB=local|cloud`
+
+For local dev, you can also use the helper script:
+`./easyDeploy.sh --db local`.

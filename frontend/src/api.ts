@@ -1,4 +1,4 @@
-import { apiUrl } from './config'
+import { API_BASE_URL, apiUrl } from './config'
 
 function getWorkspaceToken(): string | null {
   try {
@@ -13,6 +13,38 @@ function getWorkspaceToken(): string | null {
 function authHeaders(): Record<string, string> {
   const token = getWorkspaceToken()
   return token ? { Authorization: `Bearer ${token}` } : {}
+}
+
+async function fetchWithTimeout(
+  input: RequestInfo | URL,
+  init?: RequestInit,
+  timeoutMs: number = 15000,
+): Promise<Response> {
+  const controller = new AbortController()
+  const existing = init?.signal
+
+  const onAbort = () => controller.abort()
+  if (existing) {
+    if (existing.aborted) controller.abort()
+    else existing.addEventListener('abort', onAbort, { once: true })
+  }
+
+  const id = window.setTimeout(() => controller.abort(), timeoutMs)
+  try {
+    return await fetch(input, { ...init, signal: controller.signal })
+  } catch (e) {
+    const name = (e as any)?.name
+    if (name === 'AbortError') {
+      throw new Error(
+        `Request timed out after ${Math.round(timeoutMs / 1000)}s. ` +
+          `Check that the backend is running and VITE_API_BASE_URL is correct (currently: ${API_BASE_URL || '(empty)'}).`,
+      )
+    }
+    throw e
+  } finally {
+    window.clearTimeout(id)
+    if (existing) existing.removeEventListener('abort', onAbort)
+  }
 }
 
 export type Listing = {
@@ -54,6 +86,12 @@ export type ListingSummary = {
   latest_captured_at: string | null
 }
 
+export type WorkspaceIssue = {
+  workspace_id: string
+  workspace_token: string
+  expires_at: string
+}
+
 async function parseJsonOrThrow(res: Response): Promise<unknown> {
   const text = await res.text()
   if (!res.ok) {
@@ -69,8 +107,17 @@ async function parseJsonOrThrow(res: Response): Promise<unknown> {
   }
 }
 
+export async function issueWorkspaceToken(): Promise<WorkspaceIssue> {
+  const res = await fetchWithTimeout(apiUrl('/api/workspaces/issue'), {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({}),
+  })
+  return (await parseJsonOrThrow(res)) as WorkspaceIssue
+}
+
 export async function deleteListing(id: string): Promise<void> {
-  const res = await fetch(apiUrl(`/api/listings/${encodeURIComponent(id)}`), {
+  const res = await fetchWithTimeout(apiUrl(`/api/listings/${encodeURIComponent(id)}`), {
     method: 'DELETE',
     headers: authHeaders(),
   })
@@ -78,7 +125,10 @@ export async function deleteListing(id: string): Promise<void> {
 }
 
 export async function fetchListingsSummary(): Promise<ListingSummary> {
-  const res = await fetch(apiUrl('/api/listings/summary'), { method: 'GET', headers: authHeaders() })
+  const res = await fetchWithTimeout(apiUrl('/api/listings/summary'), {
+    method: 'GET',
+    headers: authHeaders(),
+  })
   return (await parseJsonOrThrow(res)) as ListingSummary
 }
 
@@ -89,7 +139,7 @@ export async function upsertTarget(payload: {
   lat?: number
   lng?: number
 }): Promise<Target> {
-  const res = await fetch(apiUrl('/api/targets'), {
+  const res = await fetchWithTimeout(apiUrl('/api/targets'), {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...authHeaders() },
     body: JSON.stringify(payload),
@@ -100,7 +150,7 @@ export async function upsertTarget(payload: {
 export async function fetchCompare(targetId?: string): Promise<CompareResponse> {
   const url = new URL(apiUrl('/api/compare'))
   if (targetId) url.searchParams.set('target_id', targetId)
-  const res = await fetch(url.toString(), { method: 'GET', headers: authHeaders() })
+  const res = await fetchWithTimeout(url.toString(), { method: 'GET', headers: authHeaders() })
   return (await parseJsonOrThrow(res)) as CompareResponse
 }
 
@@ -117,7 +167,7 @@ export async function geocodeAddress(
   const url = new URL(apiUrl('/api/geocode'))
   url.searchParams.set('query', query)
   if (opts?.limit != null) url.searchParams.set('limit', String(opts.limit))
-  const res = await fetch(url.toString(), { method: 'GET', headers: authHeaders() })
+  const res = await fetchWithTimeout(url.toString(), { method: 'GET', headers: authHeaders() })
   return (await parseJsonOrThrow(res)) as GeocodeResult[]
 }
 
@@ -136,6 +186,6 @@ export async function reverseGeocode(opts: {
   url.searchParams.set('lat', String(opts.lat))
   url.searchParams.set('lng', String(opts.lng))
   if (opts.zoom != null) url.searchParams.set('zoom', String(opts.zoom))
-  const res = await fetch(url.toString(), { method: 'GET', headers: authHeaders() })
+  const res = await fetchWithTimeout(url.toString(), { method: 'GET', headers: authHeaders() })
   return (await parseJsonOrThrow(res)) as ReverseGeocodeResponse
 }

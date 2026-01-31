@@ -15,6 +15,9 @@ cd backend
 python scripts/create_workspace.py
 ```
 
+Optional (self-serve onboarding): set `ENABLE_PUBLIC_WORKSPACE_ISSUE=1` and the web UI can call
+`POST /api/workspaces/issue` to create a 30-day token (protect this endpoint in production).
+
 ## Setup
 ```bash
 python -m venv .venv

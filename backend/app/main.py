@@ -5,7 +5,7 @@ import re
 import hashlib
 from urllib.parse import urlsplit, urlunsplit
 from contextlib import asynccontextmanager
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from typing import Annotated
 
 from fastapi import Depends, FastAPI, HTTPException, Query, Header
@@ -41,11 +41,18 @@ from .schemas import (
     ReverseGeocodeOut,
     TargetOut,
     TargetUpsert,
+    WorkspaceIssueOut,
 )
 
 
 def _utcnow() -> datetime:
     return datetime.now(timezone.utc)
+
+def _as_utc(dt: datetime) -> datetime:
+    if dt.tzinfo is None:
+        # SQLite commonly returns naive datetimes even if the column is declared timezone=True.
+        return dt.replace(tzinfo=timezone.utc)
+    return dt.astimezone(timezone.utc)
 
 
 ENABLE_LISTING_GEOCODE_FALLBACK = os.getenv(
@@ -110,19 +117,59 @@ def _extract_bearer_token(auth: str | None) -> str | None:
     return None
 
 
-def get_workspace(db: DbDep, authorization: AuthHeader) -> Workspace:
+def get_workspace(db: DbDep, authorization: AuthHeader = None) -> Workspace:
     token = _extract_bearer_token(authorization)
     if not token:
         raise HTTPException(status_code=401, detail="Missing workspace token")
 
     token_hash = hash_workspace_token(token)
     ws = db.scalar(select(Workspace).where(Workspace.token_hash == token_hash))
-    if not ws:
-        raise HTTPException(status_code=401, detail="Invalid workspace token")
-    return ws
+    if ws:
+        if ws.expires_at is not None:
+            exp = _as_utc(ws.expires_at)
+            if exp <= _utcnow():
+                raise HTTPException(status_code=401, detail="Workspace token expired")
+            ws.expires_at = exp
+        return ws
+    raise HTTPException(status_code=401, detail="Invalid workspace token")
 
 
 WorkspaceDep = Annotated[Workspace, Depends(get_workspace)]
+
+
+ENABLE_PUBLIC_WORKSPACE_ISSUE = os.getenv("ENABLE_PUBLIC_WORKSPACE_ISSUE", "0") not in {
+    "0",
+    "false",
+    "False",
+}
+PUBLIC_WORKSPACE_TTL_DAYS = int(os.getenv("PUBLIC_WORKSPACE_TTL_DAYS", "30"))
+
+
+
+@app.post("/api/workspaces/issue", response_model=WorkspaceIssueOut)
+def issue_public_workspace(db: DbDep) -> WorkspaceIssueOut:
+    """
+    Create a new workspace token for anonymous users (no login).
+
+    Production note:
+    - Keep this endpoint disabled by default and protect it (e.g., Cloud Armor / rate limiting).
+    """
+    if not ENABLE_PUBLIC_WORKSPACE_ISSUE:
+        raise HTTPException(status_code=404, detail="Public workspace issuance is disabled")
+
+    from .workspaces import generate_workspace_token  # local import to avoid cycles
+
+    token = generate_workspace_token()
+    token_hash = hash_workspace_token(token)
+    expires_at = _utcnow() + timedelta(days=PUBLIC_WORKSPACE_TTL_DAYS)
+
+    ws = Workspace(token_hash=token_hash, expires_at=expires_at)
+    db.add(ws)
+    db.commit()
+    db.refresh(ws)
+
+    assert ws.expires_at is not None
+    return WorkspaceIssueOut(workspace_id=ws.id, workspace_token=token, expires_at=ws.expires_at)
 
 
 def _upsert_listing_for_workspace(db: Session, ws: Workspace, payload: ListingUpsert) -> Listing:

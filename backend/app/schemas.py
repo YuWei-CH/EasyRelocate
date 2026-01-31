@@ -121,3 +121,9 @@ class CompareItem(BaseModel):
 class CompareResponse(BaseModel):
     target: TargetOut
     items: list[CompareItem]
+
+
+class WorkspaceIssueOut(BaseModel):
+    workspace_id: str
+    workspace_token: str
+    expires_at: datetime

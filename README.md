@@ -68,6 +68,8 @@ cd backend
 python scripts/create_workspace.py
 ```
 
+Optional (self-serve onboarding): enable `ENABLE_PUBLIC_WORKSPACE_ISSUE=1` on the backend, then the web UI can issue a 30-day token automatically via `POST /api/workspaces/issue` (see `docs/DEPLOYMENT.md`).
+
 Then paste `workspace_token` into:
 - Web app: Compare page → **Workspace** panel → Save
 - Chrome extension: Extension options → **Workspace token** → Save
@@ -77,6 +79,11 @@ The extension does not read `.env` files. Configure its API base URL in Chrome:
 Extension → **Details** → **Extension options** → “API base URL” + “Workspace token”.
 
 ## Local dev
+
+### Quick start (backend + frontend)
+```bash
+./easyDeploy.sh --db local
+```
 
 ### 1) Backend API
 ```bash

@@ -1,6 +1,6 @@
 function canonicalUrl(href) {
   try {
-    const url = new URL(href)
+    const url = new URL(href, window.location.href)
     return `${url.origin}${url.pathname}`.replace(/\/$/, '')
   } catch {
     return href

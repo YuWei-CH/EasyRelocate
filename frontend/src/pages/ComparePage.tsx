@@ -31,15 +31,10 @@ type RouteMetric = {
   durationText: string
 }
 
-function isWithinUsBounds(lat: number, lng: number): boolean {
-  return lat >= 24.396308 && lat <= 49.384358 && lng >= -125.0011 && lng <= -66.93457
-}
-
 function mapStatus(item: CompareItem): { ok: boolean; label?: string } {
   const lat = item.listing.lat
   const lng = item.listing.lng
   if (lat == null || lng == null) return { ok: false, label: 'No coords' }
-  if (!isWithinUsBounds(lat, lng)) return { ok: false, label: 'Outside US' }
   return { ok: true }
 }
 
@@ -85,6 +80,7 @@ function App() {
   const [workspaceToken, setWorkspaceToken] = useState(
     localStorage.getItem('easyrelocate_workspace_token') ?? '',
   )
+  const [workspaceNote, setWorkspaceNote] = useState<string | null>(null)
   const [targetId, setTargetId] = useState<string | null>(
     localStorage.getItem('easyrelocate_target_id'),
   )
@@ -190,11 +186,7 @@ function App() {
     const hasOwn = (obj: object, key: string): boolean =>
       Object.prototype.hasOwnProperty.call(obj, key)
 
-    const candidates = compareItems.filter((it) => {
-      const lat = it.listing.lat
-      const lng = it.listing.lng
-      return lat != null && lng != null && isWithinUsBounds(lat, lng)
-    })
+    const candidates = compareItems.filter((it) => it.listing.lat != null && it.listing.lng != null)
 
     const routeOnce = async (
       svc: any,
@@ -312,6 +304,11 @@ function App() {
       const id = opts?.nextTargetId ?? targetId
       if (!id) return
       const silent = opts?.silent ?? false
+      const token = (localStorage.getItem('easyrelocate_workspace_token') ?? '').trim()
+      if (!token) {
+        if (!silent) setError('Missing workspace token. Use Help to get one.')
+        return
+      }
       if (!silent) {
         setLoading(true)
         setError(null)
@@ -334,10 +331,12 @@ function App() {
     if (!t) {
       localStorage.removeItem('easyrelocate_workspace_token')
       setError('Workspace token cleared. Paste a workspace token to use the app.')
+      setWorkspaceNote('Cleared.')
       return
     }
     localStorage.setItem('easyrelocate_workspace_token', t)
     setError(null)
+    setWorkspaceNote('Saved.')
     if (targetId) await refresh({ nextTargetId: targetId })
   }, [refresh, targetId, workspaceToken])
 
@@ -353,6 +352,8 @@ function App() {
     const checkForNewListings = async (opts?: { force?: boolean }) => {
       if (cancelled) return
       if (!opts?.force && document.hidden) return
+      const token = (localStorage.getItem('easyrelocate_workspace_token') ?? '').trim()
+      if (!token) return
       try {
         const summary = await fetchListingsSummary()
         if (cancelled) return
@@ -397,21 +398,22 @@ function App() {
   }, [refresh, targetId])
 
   const onSaveTarget = async () => {
+    const token = (localStorage.getItem('easyrelocate_workspace_token') ?? '').trim()
+    if (!token) {
+      setError('Missing workspace token. Set a workspace token first.')
+      return
+    }
     const address = targetAddress.trim()
     const lat = parseNumberOrNull(targetLat)
     const lng = parseNumberOrNull(targetLng)
     if (targetLocationMode === 'address') {
       if (!address) {
-        setError('Provide a target address (US).')
+        setError('Provide a target address.')
         return
       }
     } else {
       if (lat == null || lng == null) {
         setError('Provide both Lat and Lng (or pick on map).')
-        return
-      }
-      if (!isWithinUsBounds(lat, lng)) {
-        setError('Target must be within the US for now.')
         return
       }
     }
@@ -552,7 +554,6 @@ function App() {
     const lat = parseNumberOrNull(targetLat)
     const lng = parseNumberOrNull(targetLng)
     if (lat == null || lng == null) return null
-    if (!isWithinUsBounds(lat, lng)) return null
     return { lat, lng }
   }, [target, targetLat, targetLng])
 
@@ -576,6 +577,17 @@ function App() {
           </div>
         </div>
         <div className="actions">
+          <Link className="button secondary" to="/onboarding/extension">
+            Help
+          </Link>
+          <a
+            className="button secondary"
+            href="https://github.com/YuWei-CH/EasyRelocate/issues"
+            target="_blank"
+            rel="noreferrer"
+          >
+            GitHub Issues
+          </a>
           <button
             className="button secondary"
             onClick={() => void refresh()}
@@ -607,11 +619,25 @@ function App() {
                   onChange={(e) => setWorkspaceToken(e.target.value)}
                   placeholder="er_ws_..."
                 />
+                {!workspaceToken.trim() ? (
+                  <div style={{ marginTop: 6, fontSize: 12, color: '#475569' }}>
+                    Need a token?{' '}
+                    <Link to="/onboarding/token" style={{ color: '#2563eb' }}>
+                      Get one
+                    </Link>
+                    .
+                  </div>
+                ) : null}
               </div>
               <button className="button secondary" onClick={() => void saveWorkspaceToken()}>
                 Save
               </button>
             </div>
+            {workspaceNote ? (
+              <div style={{ marginTop: 8, fontSize: 12, color: '#475569' }}>
+                {workspaceNote}
+              </div>
+            ) : null}
           </section>
 
           <section className="panel">
@@ -640,7 +666,7 @@ function App() {
                         setError(null)
                       }}
                     />
-                    Address (US)
+                    Address
                   </label>
                   <label style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
                     <input
@@ -661,7 +687,7 @@ function App() {
               <>
                 <div className="row" style={{ marginTop: 8 }}>
                   <div className="field" style={{ flex: 2 }}>
-                    <label>Address (US)</label>
+                    <label>Address</label>
                     <input
                       value={targetAddress}
                       onChange={(e) => setTargetAddress(e.target.value)}

@@ -217,7 +217,20 @@ function easyRelocateCreateOverlay(opts) {
       if (res && res.ok) {
         easyRelocateShowToast('Saved to EasyRelocate.')
       } else {
-        easyRelocateShowToast(`Failed: ${res?.error ?? 'Unknown error'}`, 'error')
+        const msg = String(res?.error ?? 'Unknown error')
+        const lower = msg.toLowerCase()
+        if (
+          msg.includes('401') ||
+          lower.includes('missing workspace token') ||
+          lower.includes('header') && lower.includes('authorization')
+        ) {
+          easyRelocateShowToast(
+            'Failed: missing token. Open extension options and set “Workspace token”.',
+            'error',
+          )
+        } else {
+          easyRelocateShowToast(`Failed: ${msg}`, 'error')
+        }
       }
     } catch (e) {
       easyRelocateShowToast(`Failed: ${String(e?.message ?? e)}`, 'error')

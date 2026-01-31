@@ -11,4 +11,3 @@ def hash_workspace_token(token: str) -> str:
 def generate_workspace_token() -> str:
     # Keep it copy/paste friendly.
     return f"er_ws_{secrets.token_urlsafe(32)}"
-

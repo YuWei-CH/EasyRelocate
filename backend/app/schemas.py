@@ -12,7 +12,7 @@ from pydantic import (
 )
 
 
-ListingSource = Literal["airbnb", "blueground"]
+ListingSource = Literal["airbnb", "blueground", "post"]
 PricePeriod = Literal["night", "month", "total", "unknown"]
 
 
@@ -56,6 +56,11 @@ class ListingSummaryOut(BaseModel):
     count: int
     latest_id: str | None = None
     latest_captured_at: datetime | None = None
+
+
+class ListingFromTextIn(BaseModel):
+    text: str = Field(min_length=1, max_length=20000)
+    page_url: str = Field(min_length=1, max_length=2048)
 
 
 class TargetUpsert(BaseModel):

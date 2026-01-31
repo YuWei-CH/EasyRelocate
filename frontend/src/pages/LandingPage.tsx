@@ -24,7 +24,7 @@ export default function LandingPage() {
               <p>
                 EasyRelocate is a non-commercial decision-support tool for interns/students
                 relocating to a new city. Save listings while you browse (starting with
-                Airbnb and Blueground), then compare them on one map with price + distance
+                Airbnb, Blueground and LLM extraction method), then compare them on one map with price + distance
                 filters.
               </p>
               <div className="landingCtas">
@@ -92,6 +92,9 @@ export default function LandingPage() {
               <li>Load the browser extension (unpacked).</li>
               <li>Set your workplace target (address or pick on map).</li>
               <li>On Airbnb/Blueground, click “Add to Compare”.</li>
+              <li>
+                For posts (e.g., Facebook groups), select post text and click “Add Selected Post”.
+              </li>
               <li>Return here and filter/sort on the map.</li>
             </ol>
           </div>
@@ -101,8 +104,16 @@ export default function LandingPage() {
             <ul>
               <li>Not affiliated with Airbnb/Blueground/Google/other platforms.</li>
               <li>
+                Post extraction uses an LLM via OpenRouter; only the text you select is analyzed.
+                Don’t select sensitive personal information.
+              </li>
+              <li>
                 Locations are best-effort and may be approximate (platforms may
                 intentionally obfuscate addresses).
+              </li>
+              <li>
+                LLM outputs can be wrong; always verify price/location details on the original
+                source before making decisions.
               </li>
               <li>
                 Use at your own risk; validate details on the original platform

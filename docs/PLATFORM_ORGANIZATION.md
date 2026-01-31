@@ -18,8 +18,6 @@ extension/
       content.js
     blueground/
       content.js
-    facebook/
-      content.js
   background.js
   options.html
   options.js
@@ -30,6 +28,10 @@ Each platform content script should:
 - Match only its own URLs in `manifest.json`
 - Extract the same minimal listing schema (`source`, `source_url`, `title`, `price`, `lat/lng`, …)
 - POST to the same backend endpoint (`POST /api/listings`)
+
+For “Facebook group / any site” posts, prefer a selection-based flow (no site-specific content script):
+- User highlights text → right click → **EasyRelocate: Add selected post**
+- Extension calls `POST /api/listings/from_text` (backend uses OpenRouter to extract location + monthly rent)
 
 Shared code (later) can live in `extension/shared/` (e.g., overlay UI, storage helpers).
 
@@ -53,3 +55,7 @@ If/when needed, add a thin `backend/app/platforms/` layer for:
 - Platform extraction scripts:
   - Airbnb: `extension/platforms/airbnb/content.js`
   - Blueground: `extension/platforms/blueground/content.js`
+- Facebook groups: `extension/platforms/facebook/content.js`
+- Selected-post extraction:
+  - Extension context menu: `extension/background.js`
+  - Backend LLM endpoint: `POST /api/listings/from_text`

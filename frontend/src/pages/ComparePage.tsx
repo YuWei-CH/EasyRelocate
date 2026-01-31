@@ -77,6 +77,7 @@ function sourceLabel(source: string): string {
   const s = source.trim().toLowerCase()
   if (s === 'airbnb') return 'Airbnb'
   if (s === 'blueground') return 'Blueground'
+  if (s === 'post') return 'Post'
   return source
 }
 

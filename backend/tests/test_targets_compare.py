@@ -1,8 +1,20 @@
+import os
+
 from fastapi.testclient import TestClient
+
+os.environ["DATABASE_URL"] = "sqlite+pysqlite:///:memory:"
+os.environ["ENABLE_PUBLIC_WORKSPACE_ISSUE"] = "1"
 
 import app.main as main
 from app.distance import haversine_km
 from app.geocoding import GeocodeResult, ReverseGeocodeResult
+
+
+def _auth_headers(client: TestClient) -> dict[str, str]:
+    token_res = client.post("/api/workspaces/issue")
+    assert token_res.status_code == 200, token_res.text
+    token = token_res.json()["workspace_token"]
+    return {"Authorization": f"Bearer {token}"}
 
 
 def test_geocode_endpoint_uses_provider(monkeypatch) -> None:
@@ -14,7 +26,8 @@ def test_geocode_endpoint_uses_provider(monkeypatch) -> None:
     monkeypatch.setattr(main, "geocode_address", fake_geocode_address)
 
     with TestClient(main.app) as client:
-        res = client.get("/api/geocode", params={"query": "Waymo", "limit": 1})
+        headers = _auth_headers(client)
+        res = client.get("/api/geocode", params={"query": "Waymo", "limit": 1}, headers=headers)
         assert res.status_code == 200, res.text
         data = res.json()
         assert data == [{"display_name": "Waymo HQ", "lat": 37.416, "lng": -122.077}]
@@ -33,8 +46,11 @@ def test_reverse_geocode_endpoint_returns_rough_and_street(monkeypatch) -> None:
     monkeypatch.setattr(main, "reverse_geocode", fake_reverse_geocode)
 
     with TestClient(main.app) as client:
+        headers = _auth_headers(client)
         res = client.get(
-            "/api/reverse_geocode", params={"lat": 37.416, "lng": -122.077, "zoom": 18}
+            "/api/reverse_geocode",
+            params={"lat": 37.416, "lng": -122.077, "zoom": 18},
+            headers=headers,
         )
         assert res.status_code == 200, res.text
         data = res.json()
@@ -51,12 +67,14 @@ def test_upsert_target_address_only_geocodes(monkeypatch) -> None:
     monkeypatch.setattr(main, "geocode_address", fake_geocode_address)
 
     with TestClient(main.app) as client:
+        headers = _auth_headers(client)
         res = client.post(
             "/api/targets",
             json={
                 "name": "Workplace",
                 "address": "690 E Middlefield Rd, Mountain View, CA 94043",
             },
+            headers=headers,
         )
         assert res.status_code == 200, res.text
         data = res.json()
@@ -77,9 +95,11 @@ def test_upsert_target_coords_only_reverse_geocodes(monkeypatch) -> None:
     monkeypatch.setattr(main, "reverse_geocode", fake_reverse_geocode)
 
     with TestClient(main.app) as client:
+        headers = _auth_headers(client)
         res = client.post(
             "/api/targets",
             json={"name": "Workplace", "lat": 37.416, "lng": -122.077},
+            headers=headers,
         )
         assert res.status_code == 200, res.text
         data = res.json()
@@ -90,6 +110,7 @@ def test_upsert_target_coords_only_reverse_geocodes(monkeypatch) -> None:
 
 def test_target_rejects_both_address_and_coords() -> None:
     with TestClient(main.app) as client:
+        headers = _auth_headers(client)
         res = client.post(
             "/api/targets",
             json={
@@ -98,6 +119,7 @@ def test_target_rejects_both_address_and_coords() -> None:
                 "lat": 37.416,
                 "lng": -122.077,
             },
+            headers=headers,
         )
         assert res.status_code == 422, res.text
 
@@ -109,7 +131,12 @@ def test_compare_computes_distance_and_preserves_listing_order(monkeypatch) -> N
     monkeypatch.setattr(main, "reverse_geocode", fake_reverse_geocode)
 
     with TestClient(main.app) as client:
-        t = client.post("/api/targets", json={"name": "Workplace", "lat": 37.416, "lng": -122.077})
+        headers = _auth_headers(client)
+        t = client.post(
+            "/api/targets",
+            json={"name": "Workplace", "lat": 37.416, "lng": -122.077},
+            headers=headers,
+        )
         assert t.status_code == 200, t.text
         target_id = t.json()["id"]
 
@@ -127,6 +154,7 @@ def test_compare_computes_distance_and_preserves_listing_order(monkeypatch) -> N
                 "location_text": "Mountain View, CA",
                 "captured_at": "2026-01-30T12:00:00Z",
             },
+            headers=headers,
         )
         assert l1.status_code == 200, l1.text
 
@@ -141,10 +169,11 @@ def test_compare_computes_distance_and_preserves_listing_order(monkeypatch) -> N
                 "price_value": 2500,
                 "captured_at": "2026-01-30T10:00:00Z",
             },
+            headers=headers,
         )
         assert l2.status_code == 200, l2.text
 
-        res = client.get("/api/compare", params={"target_id": target_id})
+        res = client.get("/api/compare", params={"target_id": target_id}, headers=headers)
         assert res.status_code == 200, res.text
         data = res.json()
 
@@ -163,7 +192,8 @@ def test_compare_computes_distance_and_preserves_listing_order(monkeypatch) -> N
 
 def test_listings_summary_empty_then_one() -> None:
     with TestClient(main.app) as client:
-        empty = client.get("/api/listings/summary")
+        headers = _auth_headers(client)
+        empty = client.get("/api/listings/summary", headers=headers)
         assert empty.status_code == 200, empty.text
         assert empty.json() == {"count": 0, "latest_id": None, "latest_captured_at": None}
 
@@ -177,11 +207,12 @@ def test_listings_summary_empty_then_one() -> None:
                 "price_period": "unknown",
                 "captured_at": "2026-01-30T10:00:00Z",
             },
+            headers=headers,
         )
         assert created.status_code == 200, created.text
         listing_id = created.json()["id"]
 
-        after = client.get("/api/listings/summary")
+        after = client.get("/api/listings/summary", headers=headers)
         assert after.status_code == 200, after.text
         data = after.json()
         assert data["count"] == 1
@@ -191,6 +222,7 @@ def test_listings_summary_empty_then_one() -> None:
 
 def test_upsert_listing_accepts_blueground_source() -> None:
     with TestClient(main.app) as client:
+        headers = _auth_headers(client)
         created = client.post(
             "/api/listings",
             json={
@@ -204,6 +236,7 @@ def test_upsert_listing_accepts_blueground_source() -> None:
                 "lng": -122.104919,
                 "location_text": "Mountain View, CA",
             },
+            headers=headers,
         )
         assert created.status_code == 200, created.text
         data = created.json()

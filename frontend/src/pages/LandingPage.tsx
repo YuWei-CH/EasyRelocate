@@ -57,6 +57,14 @@ export default function LandingPage() {
                 </Link>
                 <a
                   className="button secondary"
+                  href="https://chromewebstore.google.com/detail/easyrelocate/mogfgembdgeckjlklmoacakiaegnhfgj?hl=en-US&utm_source=ext_sidebar"
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  Get Chrome Extension
+                </a>
+                <a
+                  className="button secondary"
                   href="https://github.com/YuWei-CH/EasyRelocate/blob/main/docs/PLATFORM_ORGANIZATION.md"
                   target="_blank"
                   rel="noreferrer"
@@ -112,7 +120,15 @@ export default function LandingPage() {
           <div className="landingCard">
             <h2>How to use</h2>
             <ol>
-              <li>Install the browser extension.</li>
+              <li>
+                <a
+                  href="https://chromewebstore.google.com/detail/easyrelocate/mogfgembdgeckjlklmoacakiaegnhfgj?hl=en-US&utm_source=ext_sidebar"
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  Install the browser extension.
+                </a>
+              </li>
               <li>Get a workspace token (shown after the disclaimer).</li>
               <li>Open the compare map and set your target (address or pick on map).</li>
               <li>On Airbnb/Blueground, click “Add to Compare”.</li>
@@ -162,6 +178,16 @@ export default function LandingPage() {
             rel="noreferrer"
           >
             https://github.com/YuWei-CH/EasyRelocate
+          </a>
+        </div>
+        <div>
+          Data privacy:{' '}
+          <a
+            href="https://github.com/YuWei-CH/EasyRelocate/blob/main/docs/PRIVACY.md"
+            target="_blank"
+            rel="noreferrer"
+          >
+            Privacy policy
           </a>
         </div>
       </footer>

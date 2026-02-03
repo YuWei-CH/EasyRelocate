@@ -27,23 +27,7 @@ type Props = {
   onRouteError: (message: string | null) => void
 }
 
-const US_BOUNDS = {
-  west: -125.0011,
-  south: 24.396308,
-  east: -66.93457,
-  north: 49.384358,
-}
-
-const US_CENTER = { lng: -98.5795, lat: 39.8283 }
-
-function isWithinUsBounds(lat: number, lng: number): boolean {
-  return (
-    lat >= US_BOUNDS.south &&
-    lat <= US_BOUNDS.north &&
-    lng >= US_BOUNDS.west &&
-    lng <= US_BOUNDS.east
-  )
-}
+const WORLD_CENTER = { lng: 0, lat: 20 }
 
 function svgUrl(svg: string): string {
   return `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`
@@ -117,9 +101,6 @@ export default function MapView({
   const points = useMemo(() => {
     const listingPoints = items
       .filter((it) => it.listing.lat != null && it.listing.lng != null)
-      .filter((it) =>
-        isWithinUsBounds(it.listing.lat as number, it.listing.lng as number),
-      )
       .map((it) => ({
         id: it.listing.id,
         kind: 'listing' as const,
@@ -129,8 +110,7 @@ export default function MapView({
     const targetPoint =
       target == null
         ? []
-        : isWithinUsBounds(target.lat, target.lng)
-          ? [
+        : [
             {
               id: target.id,
               kind: 'target' as const,
@@ -138,7 +118,6 @@ export default function MapView({
               lat: target.lat,
             },
           ]
-          : []
     return [...targetPoint, ...listingPoints]
   }, [items, target])
 
@@ -155,14 +134,14 @@ export default function MapView({
         }
         await loadGoogleMaps()
         if (cancelled) return
-        const startCenter = initialCenter ?? (target ? { lat: target.lat, lng: target.lng } : US_CENTER)
+        const startCenter =
+          initialCenter ?? (target ? { lat: target.lat, lng: target.lng } : WORLD_CENTER)
         const map = new google.maps.Map(containerRef.current!, {
           center: startCenter,
-          zoom: target || initialCenter ? 11 : 4,
+          zoom: target || initialCenter ? 11 : 2,
           mapTypeControl: false,
           streetViewControl: false,
           fullscreenControl: false,
-          restriction: { latLngBounds: US_BOUNDS, strictBounds: true },
           clickableIcons: false,
         })
         mapRef.current = map
@@ -227,6 +206,15 @@ export default function MapView({
       hasFitRef.current = fitKey
     }
   }, [fitKey, isPickingTarget, onSelectListingId, points, selectedListingId])
+
+  useEffect(() => {
+    const map = mapRef.current
+    if (!map) return
+    if (!target) return
+    if (selectedListingId) return
+    map.panTo({ lat: target.lat, lng: target.lng })
+    map.setZoom(Math.max(map.getZoom() ?? 0, 12))
+  }, [target, selectedListingId])
 
   useEffect(() => {
     const map = mapRef.current

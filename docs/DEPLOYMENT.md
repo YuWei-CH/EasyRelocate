@@ -38,7 +38,7 @@ Both options use the same app code. The only differences are environment variabl
   - `OPENROUTER_API_KEY` and `OPENROUTER_MODEL`
 - Optional self-serve onboarding:
   - `ENABLE_PUBLIC_WORKSPACE_ISSUE=1`
-  - `PUBLIC_WORKSPACE_TTL_DAYS=30`
+  - `PUBLIC_WORKSPACE_TTL_DAYS=180`
 
 ## Option A — Vercel + Cloud Run + Cloud SQL Postgres
 
@@ -106,7 +106,7 @@ EasyRelocate does not ship a signup/login flow. You have two choices:
 Run the script against the same Postgres `DATABASE_URL` the backend uses:
 ```bash
 cd backend
-DATABASE_URL="postgresql+psycopg://..." python scripts/create_workspace.py --ttl-days 30
+DATABASE_URL="postgresql+psycopg://..." python scripts/create_workspace.py --ttl-days 180
 ```
 
 Output:

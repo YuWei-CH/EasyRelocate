@@ -119,6 +119,11 @@ export default function OnboardingTokenPage() {
     window.postMessage({ type: 'EASYRELOCATE_PAIR_REQUEST', token: t }, window.location.origin)
   }
 
+  const onPairAndContinue = () => {
+    onPairExtension()
+    navigate('/compare')
+  }
+
   useEffect(() => {
     const handler = (event: MessageEvent) => {
       if (event.source !== window) return
@@ -178,7 +183,11 @@ export default function OnboardingTokenPage() {
         <section className="onboardingHero">
           <h1>Workspace token</h1>
           <p className="onboardingSubtitle">
-            This token is valid for 30 days. Keep it private (like a password).
+            This token is valid for 6 months. Keep it private (like a password).
+          </p>
+          <p className="onboardingSubtitle" style={{ marginTop: 6 }}>
+            You can update your token anytime in the Map page (Workspace panel). Saving a new token
+            will auto‑pair your extension.
           </p>
 
           <div className="onboardingCard" style={{ maxWidth: 720 }}>
@@ -222,10 +231,10 @@ export default function OnboardingTokenPage() {
                   <button className="button secondary" onClick={() => void onCopy()}>
                     Copy
                   </button>
-                  <button className="button secondary" onClick={onPairExtension}>
-                    Pair extension
+                  <button className="button" onClick={onPairAndContinue}>
+                    Pair & Continue
                   </button>
-                  <button className="button" onClick={onContinue}>
+                  <button className="button secondary" onClick={onContinue}>
                     Continue to map
                   </button>
                 </div>
@@ -237,10 +246,10 @@ export default function OnboardingTokenPage() {
                 <button className="button secondary" onClick={() => void doIssue()}>
                   Generate token
                 </button>
-                <button className="button secondary" onClick={onPairExtension}>
-                  Pair extension
+                <button className="button" onClick={onPairAndContinue}>
+                  Pair & Continue
                 </button>
-                <button className="button" onClick={onContinue}>
+                <button className="button secondary" onClick={onContinue}>
                   Continue to map
                 </button>
               </div>

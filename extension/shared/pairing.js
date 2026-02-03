@@ -1,6 +1,8 @@
 ;(function () {
   const REQUEST_TYPE = 'EASYRELOCATE_PAIR_REQUEST'
   const RESULT_TYPE = 'EASYRELOCATE_PAIR_RESULT'
+  const PING_TYPE = 'EASYRELOCATE_PING_REQUEST'
+  const PING_RESULT = 'EASYRELOCATE_PING_RESULT'
   const PAIR_HASH = '/onboarding/token'
 
   function shouldHandle() {
@@ -13,6 +15,10 @@
     if (event.origin !== window.location.origin) return
 
     const data = event.data || {}
+    if (data.type === PING_TYPE) {
+      window.postMessage({ type: PING_RESULT, ok: true }, window.location.origin)
+      return
+    }
     if (data.type !== REQUEST_TYPE) return
 
     const token = String(data.token || '').trim()

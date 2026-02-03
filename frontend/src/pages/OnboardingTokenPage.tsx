@@ -32,7 +32,9 @@ export default function OnboardingTokenPage() {
   const [error, setError] = useState<string | null>(null)
   const [issued, setIssued] = useState<WorkspaceIssue | null>(null)
   const [pairStatus, setPairStatus] = useState<string | null>(null)
+  const [extensionStatus, setExtensionStatus] = useState<string | null>(null)
   const pairTimeoutRef = useRef<number | null>(null)
+  const pingTimeoutRef = useRef<number | null>(null)
 
   const token = issued?.workspace_token ?? ''
   const expiresAt = issued?.expires_at ?? ''
@@ -119,8 +121,28 @@ export default function OnboardingTokenPage() {
     window.postMessage({ type: 'EASYRELOCATE_PAIR_REQUEST', token: t }, window.location.origin)
   }
 
-  const onPairAndContinue = () => {
+  const waitForPairResult = (): Promise<boolean> =>
+    new Promise((resolve) => {
+      const timeout = window.setTimeout(() => {
+        window.removeEventListener('message', onResult)
+        resolve(false)
+      }, 3500)
+      const onResult = (event: MessageEvent) => {
+        if (event.source !== window) return
+        if (event.origin !== window.location.origin) return
+        const data = event.data as { type?: string; ok?: boolean } | null
+        if (!data || data.type !== 'EASYRELOCATE_PAIR_RESULT') return
+        window.clearTimeout(timeout)
+        window.removeEventListener('message', onResult)
+        resolve(!!data.ok)
+      }
+      window.addEventListener('message', onResult)
+    })
+
+  const onPairAndContinue = async () => {
     onPairExtension()
+    const ok = await waitForPairResult()
+    if (!ok) return
     navigate('/compare')
   }
 
@@ -129,6 +151,14 @@ export default function OnboardingTokenPage() {
       if (event.source !== window) return
       if (event.origin !== window.location.origin) return
       const data = event.data as { type?: string; ok?: boolean; error?: string } | null
+      if (data?.type === 'EASYRELOCATE_PING_RESULT') {
+        if (pingTimeoutRef.current) {
+          window.clearTimeout(pingTimeoutRef.current)
+          pingTimeoutRef.current = null
+        }
+        setExtensionStatus('Extension detected.')
+        return
+      }
       if (!data || data.type !== 'EASYRELOCATE_PAIR_RESULT') return
       if (pairTimeoutRef.current) {
         window.clearTimeout(pairTimeoutRef.current)
@@ -141,11 +171,19 @@ export default function OnboardingTokenPage() {
       }
     }
     window.addEventListener('message', handler)
+    pingTimeoutRef.current = window.setTimeout(() => {
+      setExtensionStatus('Extension not detected. Install or reload it, then refresh this page.')
+    }, 1200)
+    window.postMessage({ type: 'EASYRELOCATE_PING_REQUEST' }, window.location.origin)
     return () => {
       window.removeEventListener('message', handler)
       if (pairTimeoutRef.current) {
         window.clearTimeout(pairTimeoutRef.current)
         pairTimeoutRef.current = null
+      }
+      if (pingTimeoutRef.current) {
+        window.clearTimeout(pingTimeoutRef.current)
+        pingTimeoutRef.current = null
       }
     }
   }, [])
@@ -231,11 +269,11 @@ export default function OnboardingTokenPage() {
                   <button className="button secondary" onClick={() => void onCopy()}>
                     Copy
                   </button>
-                  <button className="button" onClick={onPairAndContinue}>
-                    Pair & Continue
-                  </button>
                   <button className="button secondary" onClick={onContinue}>
                     Continue to map
+                  </button>
+                  <button className="button" onClick={onPairAndContinue}>
+                    Pair & Continue
                   </button>
                 </div>
               </>
@@ -246,17 +284,22 @@ export default function OnboardingTokenPage() {
                 <button className="button secondary" onClick={() => void doIssue()}>
                   Generate token
                 </button>
-                <button className="button" onClick={onPairAndContinue}>
-                  Pair & Continue
-                </button>
                 <button className="button secondary" onClick={onContinue}>
                   Continue to map
+                </button>
+                <button className="button" onClick={onPairAndContinue}>
+                  Pair & Continue
                 </button>
               </div>
             ) : null}
 
             {pairStatus ? (
               <div style={{ marginTop: 12, color: '#475569', fontSize: 13 }}>{pairStatus}</div>
+            ) : null}
+            {extensionStatus ? (
+              <div style={{ marginTop: 6, color: '#475569', fontSize: 13 }}>
+                {extensionStatus}
+              </div>
             ) : null}
           </div>
         </section>

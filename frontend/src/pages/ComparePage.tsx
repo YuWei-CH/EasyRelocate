@@ -337,9 +337,27 @@ function App() {
     localStorage.setItem('easyrelocate_workspace_token', t)
     window.postMessage({ type: 'EASYRELOCATE_PAIR_REQUEST', token: t }, window.location.origin)
     setError(null)
-    setWorkspaceNote('Saved.')
+    setWorkspaceNote('Saved. Pairing request sent to extension.')
     if (targetId) await refresh({ nextTargetId: targetId })
   }, [refresh, targetId, workspaceToken])
+
+  useEffect(() => {
+    const handler = (event: MessageEvent) => {
+      if (event.source !== window) return
+      if (event.origin !== window.location.origin) return
+      const data = event.data as { type?: string; ok?: boolean; error?: string } | null
+      if (!data || data.type !== 'EASYRELOCATE_PAIR_RESULT') return
+      if (data.ok) {
+        setWorkspaceNote('Extension paired successfully.')
+      } else if (data.error) {
+        setWorkspaceNote(`Pairing failed: ${data.error}`)
+      } else {
+        setWorkspaceNote('Pairing failed. Please retry.')
+      }
+    }
+    window.addEventListener('message', handler)
+    return () => window.removeEventListener('message', handler)
+  }, [])
 
   useEffect(() => {
     if (!targetId) return
@@ -889,10 +907,20 @@ function App() {
 
           <section className="list" aria-busy={loading}>
             {filteredAndSorted.length === 0 ? (
-              <div style={{ color: '#475569', fontSize: 13, padding: '4px 4px' }}>
-                {targetId
-                  ? 'No listings yet (or filtered out). Add some via the extension.'
-                  : 'Set a target first, then add listings via the extension.'}
+              <div className="emptyState">
+                <p>
+                  {targetId
+                    ? 'No listings yet (or filtered out). Add some via the extension.'
+                    : 'Set a target first, then add listings via the extension.'}
+                </p>
+                <a
+                  className="button secondary"
+                  href="https://chromewebstore.google.com/detail/easyrelocate/mogfgembdgeckjlklmoacakiaegnhfgj?hl=en-US&utm_source=ext_sidebar"
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  Get Chrome Extension
+                </a>
               </div>
             ) : null}
             {filteredAndSorted.map((it) => {

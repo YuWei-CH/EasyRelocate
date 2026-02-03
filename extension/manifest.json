@@ -5,8 +5,8 @@
   "description": "Save listings (Airbnb, Blueground) and selected posts to compare in EasyRelocate.",
   "permissions": ["storage", "contextMenus"],
   "host_permissions": [
-    "http://localhost/*",
-    "http://127.0.0.1/*",
+    "https://easyrelocate.net/*",
+    "https://www.easyrelocate.net/*",
     "https://airbnb.com/*",
     "https://*.airbnb.com/*",
     "https://theblueground.com/*",
@@ -18,6 +18,14 @@
     "service_worker": "background.js"
   },
   "content_scripts": [
+    {
+      "matches": [
+        "https://easyrelocate.net/*",
+        "https://www.easyrelocate.net/*"
+      ],
+      "js": ["shared/pairing.js"],
+      "run_at": "document_idle"
+    },
     {
       "matches": ["https://airbnb.com/rooms/*", "https://*.airbnb.com/rooms/*"],
       "js": ["shared/overlay.js", "platforms/airbnb/content.js"],

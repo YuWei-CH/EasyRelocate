@@ -12,6 +12,10 @@
 3. Set the API base URL (default: `http://127.0.0.1:8000`)
 4. Set your **Workspace token** (use the same token as the web app)
 
+## Auto-pairing (recommended)
+On the web app’s token page (`/#/onboarding/token`), click **Pair extension** to send the
+workspace token to the extension automatically.
+
 Note: the extension does **not** read `.env` files. Its API base URL is stored in Chrome sync storage
 and can differ from the frontend’s `VITE_API_BASE_URL` if needed.
 

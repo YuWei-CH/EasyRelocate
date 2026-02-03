@@ -1,6 +1,6 @@
 import '../App.css'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 
 import { issueWorkspaceToken, type WorkspaceIssue } from '../api'
@@ -31,9 +31,16 @@ export default function OnboardingTokenPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [issued, setIssued] = useState<WorkspaceIssue | null>(null)
+  const [pairStatus, setPairStatus] = useState<string | null>(null)
+  const pairTimeoutRef = useRef<number | null>(null)
 
   const token = issued?.workspace_token ?? ''
   const expiresAt = issued?.expires_at ?? ''
+  const savedToken = useMemo(() => {
+    const raw = localStorage.getItem('easyrelocate_workspace_token')
+    return (raw ?? '').trim()
+  }, [issued])
+  const effectiveToken = token || savedToken
 
   const alreadyHasToken = useMemo(() => {
     const raw = localStorage.getItem('easyrelocate_workspace_token')
@@ -95,6 +102,48 @@ export default function OnboardingTokenPage() {
   const onContinue = () => {
     navigate('/compare')
   }
+
+  const onPairExtension = () => {
+    const t = effectiveToken.trim()
+    if (!t) {
+      setPairStatus('Missing token to pair.')
+      return
+    }
+    setPairStatus('Waiting for extension…')
+    if (pairTimeoutRef.current) {
+      window.clearTimeout(pairTimeoutRef.current)
+    }
+    pairTimeoutRef.current = window.setTimeout(() => {
+      setPairStatus('No response from extension. Make sure it is installed and enabled.')
+    }, 3000)
+    window.postMessage({ type: 'EASYRELOCATE_PAIR_REQUEST', token: t }, window.location.origin)
+  }
+
+  useEffect(() => {
+    const handler = (event: MessageEvent) => {
+      if (event.source !== window) return
+      if (event.origin !== window.location.origin) return
+      const data = event.data as { type?: string; ok?: boolean; error?: string } | null
+      if (!data || data.type !== 'EASYRELOCATE_PAIR_RESULT') return
+      if (pairTimeoutRef.current) {
+        window.clearTimeout(pairTimeoutRef.current)
+        pairTimeoutRef.current = null
+      }
+      if (data.ok) {
+        setPairStatus('Extension paired successfully.')
+      } else {
+        setPairStatus(data.error || 'Failed to pair with extension.')
+      }
+    }
+    window.addEventListener('message', handler)
+    return () => {
+      window.removeEventListener('message', handler)
+      if (pairTimeoutRef.current) {
+        window.clearTimeout(pairTimeoutRef.current)
+        pairTimeoutRef.current = null
+      }
+    }
+  }, [])
 
   return (
     <div className="landing">
@@ -173,6 +222,9 @@ export default function OnboardingTokenPage() {
                   <button className="button secondary" onClick={() => void onCopy()}>
                     Copy
                   </button>
+                  <button className="button secondary" onClick={onPairExtension}>
+                    Pair extension
+                  </button>
                   <button className="button" onClick={onContinue}>
                     Continue to map
                   </button>
@@ -185,10 +237,17 @@ export default function OnboardingTokenPage() {
                 <button className="button secondary" onClick={() => void doIssue()}>
                   Generate token
                 </button>
+                <button className="button secondary" onClick={onPairExtension}>
+                  Pair extension
+                </button>
                 <button className="button" onClick={onContinue}>
                   Continue to map
                 </button>
               </div>
+            ) : null}
+
+            {pairStatus ? (
+              <div style={{ marginTop: 12, color: '#475569', fontSize: 13 }}>{pairStatus}</div>
             ) : null}
           </div>
         </section>

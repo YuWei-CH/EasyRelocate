@@ -52,6 +52,12 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   if (!message || !message.type) return
 
   ;(async () => {
+    if (message.type === 'EASYRELOCATE_SET_WORKSPACE_TOKEN') {
+      const token = String(message.token || '').trim()
+      await setWorkspaceToken(token)
+      sendResponse({ ok: true })
+      return
+    }
     const path =
       message.type === 'EASYRELOCATE_ADD_LISTING_FROM_TEXT'
         ? '/api/listings/from_text'

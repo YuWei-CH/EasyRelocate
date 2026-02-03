@@ -335,6 +335,7 @@ function App() {
       return
     }
     localStorage.setItem('easyrelocate_workspace_token', t)
+    window.postMessage({ type: 'EASYRELOCATE_PAIR_REQUEST', token: t }, window.location.origin)
     setError(null)
     setWorkspaceNote('Saved.')
     if (targetId) await refresh({ nextTargetId: targetId })

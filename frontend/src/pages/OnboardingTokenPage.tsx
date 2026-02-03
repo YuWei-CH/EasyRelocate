@@ -183,7 +183,7 @@ export default function OnboardingTokenPage() {
         <section className="onboardingHero">
           <h1>Workspace token</h1>
           <p className="onboardingSubtitle">
-            This token is valid for 30 days. Keep it private (like a password).
+            This token is valid for 6 months. Keep it private (like a password).
           </p>
           <p className="onboardingSubtitle" style={{ marginTop: 6 }}>
             You can update your token anytime in the Map page (Workspace panel). Saving a new token

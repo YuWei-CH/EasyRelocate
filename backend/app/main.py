@@ -42,6 +42,7 @@ from .schemas import (
     TargetOut,
     TargetUpsert,
     WorkspaceIssueOut,
+    StatsOut,
 )
 
 
@@ -143,6 +144,7 @@ ENABLE_PUBLIC_WORKSPACE_ISSUE = os.getenv("ENABLE_PUBLIC_WORKSPACE_ISSUE", "0") 
     "False",
 }
 PUBLIC_WORKSPACE_TTL_DAYS = int(os.getenv("PUBLIC_WORKSPACE_TTL_DAYS", "180"))
+ADMIN_STATS_TOKEN = os.getenv("ADMIN_STATS_TOKEN", "").strip()
 
 
 
@@ -170,6 +172,22 @@ def issue_public_workspace(db: DbDep) -> WorkspaceIssueOut:
 
     assert ws.expires_at is not None
     return WorkspaceIssueOut(workspace_id=ws.id, workspace_token=token, expires_at=ws.expires_at)
+
+
+def require_admin_stats_token(authorization: AuthHeader = None) -> None:
+    if not ADMIN_STATS_TOKEN:
+        raise HTTPException(status_code=404, detail="Stats endpoint disabled")
+    token = _extract_bearer_token(authorization)
+    if token != ADMIN_STATS_TOKEN:
+        raise HTTPException(status_code=401, detail="Invalid admin token")
+
+
+@app.get("/api/stats", response_model=StatsOut, dependencies=[Depends(require_admin_stats_token)])
+def get_stats(db: DbDep) -> StatsOut:
+    workspaces = db.scalar(select(func.count(Workspace.id))) or 0
+    listings = db.scalar(select(func.count(Listing.id))) or 0
+    targets = db.scalar(select(func.count(Target.id))) or 0
+    return StatsOut(workspaces=workspaces, listings=listings, targets=targets)
 
 
 def _upsert_listing_for_workspace(db: Session, ws: Workspace, payload: ListingUpsert) -> Listing:

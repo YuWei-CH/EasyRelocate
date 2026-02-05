@@ -1,4 +1,5 @@
 import { HashRouter, Navigate, Route, Routes } from 'react-router-dom'
+import { Analytics } from '@vercel/analytics/react'
 
 import ComparePage from './pages/ComparePage'
 import LandingPage from './pages/LandingPage'
@@ -15,6 +16,7 @@ export default function App() {
         <Route path="/compare" element={<ComparePage />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
+      <Analytics />
     </HashRouter>
   )
 }

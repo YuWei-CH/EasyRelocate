@@ -18,6 +18,10 @@ python scripts/create_workspace.py
 Optional (self-serve onboarding): set `ENABLE_PUBLIC_WORKSPACE_ISSUE=1` and the web UI can call
 `POST /api/workspaces/issue` to create a 6-month token (protect this endpoint in production).
 
+Admin stats (optional): set `ADMIN_STATS_TOKEN` to enable `GET /api/stats`.
+Send `Authorization: Bearer <ADMIN_STATS_TOKEN>` to retrieve total counts for workspaces,
+listings, and targets.
+
 ## Setup
 ```bash
 python -m venv .venv

@@ -39,6 +39,8 @@ Both options use the same app code. The only differences are environment variabl
 - Optional self-serve onboarding:
   - `ENABLE_PUBLIC_WORKSPACE_ISSUE=1`
   - `PUBLIC_WORKSPACE_TTL_DAYS=180`
+- Optional admin stats:
+  - `ADMIN_STATS_TOKEN=...` (enables `GET /api/stats`)
 
 ## Option A — Vercel + Cloud Run + Cloud SQL Postgres
 
@@ -281,6 +283,12 @@ At minimum:
 
 ### CORS errors in browser console
 - Set backend `CORS_ALLOW_ORIGINS` to include your frontend origin(s).
+
+### Admin stats (user counts)
+Set `ADMIN_STATS_TOKEN` in your backend environment. Then call:
+```bash
+curl -H "Authorization: Bearer ADMIN_STATS_TOKEN" https://api.easyrelocate.net/api/stats
+```
 
 ### CORS errors from Chrome extension (blocked by CORS)
 - Add your extension origin to `CORS_ALLOW_ORIGINS`:

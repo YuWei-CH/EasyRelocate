@@ -3,13 +3,14 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 
 import MapView from '../MapView'
-import type { CompareItem, ListingSummary } from '../api'
+import type { CompareItem, GeocodeResult, ListingSummary } from '../api'
 import { DISABLE_GOOGLE_MAPS } from '../config'
 import { loadGoogleMaps } from '../googleMaps'
 import {
   deleteListing,
   fetchCompare,
   fetchListingsSummary,
+  geocodeAddress,
   reverseGeocode,
   upsertTarget,
 } from '../api'
@@ -103,6 +104,11 @@ function App() {
   const [targetCoordsPreviewLocation, setTargetCoordsPreviewLocation] = useState<string | null>(
     null,
   )
+  const [targetAddressSuggestions, setTargetAddressSuggestions] = useState<GeocodeResult[]>([])
+  const [targetAddressSuggesting, setTargetAddressSuggesting] = useState(false)
+  const [showTargetAddressSuggestions, setShowTargetAddressSuggestions] = useState(false)
+  const [targetAddressQuery, setTargetAddressQuery] = useState('')
+  const targetAddressSuggestReqRef = useRef(0)
 
   const [compareItems, setCompareItems] = useState<CompareItem[]>([])
   const [target, setTarget] = useState<{
@@ -148,6 +154,46 @@ function App() {
   useEffect(() => {
     if (targetLocationMode !== 'coords') setIsPickingTarget(false)
   }, [targetLocationMode])
+
+  useEffect(() => {
+    if (targetLocationMode !== 'address') {
+      setShowTargetAddressSuggestions(false)
+      setTargetAddressSuggestions([])
+      return
+    }
+    const query = targetAddress.trim()
+    setTargetAddressQuery(query)
+    const token = (localStorage.getItem('easyrelocate_workspace_token') ?? '').trim()
+    if (query.length < 3 || !token) {
+      setTargetAddressSuggestions([])
+      setShowTargetAddressSuggestions(false)
+      setTargetAddressSuggesting(false)
+      return
+    }
+
+    const reqId = ++targetAddressSuggestReqRef.current
+    setTargetAddressSuggesting(true)
+    const timer = window.setTimeout(() => {
+      void (async () => {
+        try {
+          const results = await geocodeAddress(query, { limit: 5 })
+          if (targetAddressSuggestReqRef.current !== reqId) return
+          setTargetAddressSuggestions(results)
+          setShowTargetAddressSuggestions(results.length > 0)
+        } catch {
+          if (targetAddressSuggestReqRef.current !== reqId) return
+          setTargetAddressSuggestions([])
+          setShowTargetAddressSuggestions(false)
+        } finally {
+          if (targetAddressSuggestReqRef.current === reqId) {
+            setTargetAddressSuggesting(false)
+          }
+        }
+      })()
+    }, 280)
+
+    return () => window.clearTimeout(timer)
+  }, [targetAddress, targetLocationMode])
 
   const selectedItem = useMemo(() => {
     if (!selectedListingId) return null
@@ -685,7 +731,7 @@ function App() {
                         setError(null)
                       }}
                     />
-                    Address
+                    Address - Type to search
                   </label>
                   <label style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
                     <input
@@ -706,12 +752,56 @@ function App() {
               <>
                 <div className="row" style={{ marginTop: 8 }}>
                   <div className="field" style={{ flex: 2 }}>
-                    <label>Address</label>
+                    <label>Address - Type to search</label>
                     <input
                       value={targetAddress}
-                      onChange={(e) => setTargetAddress(e.target.value)}
+                      onChange={(e) => {
+                        setTargetAddress(e.target.value)
+                        setShowTargetAddressSuggestions(true)
+                      }}
+                      onFocus={() => {
+                        if (targetAddressSuggestions.length > 0) {
+                          setShowTargetAddressSuggestions(true)
+                        }
+                      }}
+                      onBlur={() => {
+                        window.setTimeout(() => setShowTargetAddressSuggestions(false), 120)
+                      }}
                       placeholder="e.g. 1600 Amphitheatre Pkwy, Mountain View, CA"
                     />
+                    {targetAddressSuggesting ? (
+                      <div className="typeaheadHint">Searching companies and addresses…</div>
+                    ) : null}
+                    {showTargetAddressSuggestions && targetAddressSuggestions.length > 0 ? (
+                      <div className="typeaheadMenu">
+                        {targetAddressSuggestions.map((s) => (
+                          <button
+                            key={`${s.display_name}:${s.lat}:${s.lng}`}
+                            type="button"
+                            className="typeaheadItem"
+                            onMouseDown={(e) => e.preventDefault()}
+                            onClick={() => {
+                              setTargetAddress(s.display_name)
+                              setTargetLat(String(s.lat))
+                              setTargetLng(String(s.lng))
+                              setTargetAddressSuggestions([])
+                              setShowTargetAddressSuggestions(false)
+                            }}
+                            title={`${s.lat.toFixed(6)}, ${s.lng.toFixed(6)}`}
+                          >
+                            {s.display_name}
+                          </button>
+                        ))}
+                      </div>
+                    ) : null}
+                    {showTargetAddressSuggestions &&
+                      !targetAddressSuggesting &&
+                      targetAddressQuery.length >= 3 &&
+                      targetAddressSuggestions.length === 0 ? (
+                      <div className="typeaheadEmpty">
+                        No candidates found for "{targetAddressQuery}".
+                      </div>
+                    ) : null}
                   </div>
                 </div>
                 {target ? (

@@ -24,7 +24,7 @@ from .geocoding import (
     reverse_geocode,
     rough_location_from_address,
 )
-from .models import Listing, Target, Workspace
+from .models import InterestingTarget, Listing, Target, Workspace
 from .openrouter import (
     extract_housing_post,
     OpenRouterConfigError,
@@ -39,6 +39,8 @@ from .schemas import (
     ListingSummaryOut,
     ListingUpsert,
     ReverseGeocodeOut,
+    InterestingTargetOut,
+    InterestingTargetUpsert,
     TargetOut,
     TargetUpsert,
     WorkspaceIssueOut,
@@ -495,6 +497,105 @@ def list_targets(db: DbDep, ws: WorkspaceDep) -> list[Target]:
     return list(
         db.scalars(select(Target).where(Target.workspace_id == ws.id).order_by(Target.updated_at.desc()))
     )
+
+
+@app.post("/api/interesting_targets", response_model=InterestingTargetOut)
+def upsert_interesting_target(
+    payload: InterestingTargetUpsert,
+    db: DbDep,
+    ws: WorkspaceDep,
+) -> InterestingTarget:
+    now = _utcnow()
+
+    lat = payload.lat
+    lng = payload.lng
+    address = payload.address.strip() if isinstance(payload.address, str) else None
+    if address == "":
+        address = None
+
+    if lat is None or lng is None:
+        try:
+            candidates = geocode_address(address or "", limit=1)
+        except HTTPError as e:
+            raise HTTPException(status_code=502, detail=str(e)) from e
+        except GeocodingConfigError as e:
+            raise HTTPException(status_code=500, detail=str(e)) from e
+        except GeocodingProviderError as e:
+            raise HTTPException(status_code=502, detail=str(e)) from e
+        if not candidates:
+            raise HTTPException(status_code=404, detail="Address not found")
+        lat = candidates[0].lat
+        lng = candidates[0].lng
+        if address is None:
+            address = candidates[0].display_name
+    elif address is None:
+        try:
+            rev = reverse_geocode(lat, lng, zoom=14)
+            address = rough_location_from_address(rev.address) or rev.display_name
+        except HTTPError:
+            address = None
+
+    target: InterestingTarget | None = None
+    if payload.id:
+        target = db.scalar(
+            select(InterestingTarget).where(
+                InterestingTarget.workspace_id == ws.id,
+                InterestingTarget.id == payload.id,
+            )
+        )
+
+    if target:
+        target.name = payload.name
+        target.address = address
+        target.lat = lat
+        target.lng = lng
+        target.updated_at = now
+        db.add(target)
+        db.commit()
+        db.refresh(target)
+        return target
+
+    create_kwargs = {
+        "workspace_id": ws.id,
+        "name": payload.name,
+        "address": address,
+        "lat": lat,
+        "lng": lng,
+        "updated_at": now,
+    }
+    if payload.id:
+        create_kwargs["id"] = payload.id
+    target = InterestingTarget(**create_kwargs)
+    db.add(target)
+    db.commit()
+    db.refresh(target)
+    return target
+
+
+@app.get("/api/interesting_targets", response_model=list[InterestingTargetOut])
+def list_interesting_targets(db: DbDep, ws: WorkspaceDep) -> list[InterestingTarget]:
+    return list(
+        db.scalars(
+            select(InterestingTarget)
+            .where(InterestingTarget.workspace_id == ws.id)
+            .order_by(InterestingTarget.updated_at.desc())
+        )
+    )
+
+
+@app.delete("/api/interesting_targets/{target_id}")
+def delete_interesting_target(target_id: str, db: DbDep, ws: WorkspaceDep) -> dict[str, bool]:
+    target = db.scalar(
+        select(InterestingTarget).where(
+            InterestingTarget.workspace_id == ws.id,
+            InterestingTarget.id == target_id,
+        )
+    )
+    if not target:
+        raise HTTPException(status_code=404, detail="Interesting target not found")
+    db.delete(target)
+    db.commit()
+    return {"deleted": True}
 
 
 @app.get("/api/compare", response_model=CompareResponse)

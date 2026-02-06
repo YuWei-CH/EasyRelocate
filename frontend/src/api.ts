@@ -70,6 +70,15 @@ export type Target = {
   updated_at: string
 }
 
+export type InterestingTarget = {
+  id: string
+  name: string
+  address: string | null
+  lat: number
+  lng: number
+  updated_at: string
+}
+
 export type CompareItem = {
   listing: Listing
   metrics: { distance_km: number | null }
@@ -145,6 +154,40 @@ export async function upsertTarget(payload: {
     body: JSON.stringify(payload),
   })
   return (await parseJsonOrThrow(res)) as Target
+}
+
+export async function upsertInterestingTarget(payload: {
+  id?: string
+  name: string
+  address?: string
+  lat?: number
+  lng?: number
+}): Promise<InterestingTarget> {
+  const res = await fetchWithTimeout(apiUrl('/api/interesting_targets'), {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...authHeaders() },
+    body: JSON.stringify(payload),
+  })
+  return (await parseJsonOrThrow(res)) as InterestingTarget
+}
+
+export async function listInterestingTargets(): Promise<InterestingTarget[]> {
+  const res = await fetchWithTimeout(apiUrl('/api/interesting_targets'), {
+    method: 'GET',
+    headers: authHeaders(),
+  })
+  return (await parseJsonOrThrow(res)) as InterestingTarget[]
+}
+
+export async function deleteInterestingTarget(id: string): Promise<void> {
+  const res = await fetchWithTimeout(
+    apiUrl(`/api/interesting_targets/${encodeURIComponent(id)}`),
+    {
+      method: 'DELETE',
+      headers: authHeaders(),
+    },
+  )
+  await parseJsonOrThrow(res)
 }
 
 export async function fetchCompare(targetId?: string): Promise<CompareResponse> {

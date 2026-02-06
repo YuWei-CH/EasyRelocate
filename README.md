@@ -11,6 +11,12 @@ Users collect listings while browsing platforms such as Airbnb, Blueground, Face
 
 EasyRelocate does not scrape platforms server-side, host listings, process payments, or replace original marketplaces. It exists solely to help users make better relocation decisions, while respecting platform boundaries and directing all final actions back to the original sources.
 
+## Latest updates
+- Added searchable workplace address input with candidates.
+- Added “Interesting Targets” (e.g., mall/friend house/landmark) shown on map.
+- Added Vercel Analytics and improved onboarding/pairing UX.
+- Full release history: `CHANGELOG.md`
+
 ## Repo structure
 - `backend/`: FastAPI API (SQLite for local dev; Postgres supported via `DATABASE_URL`)
 - `frontend/`: React (Vite) web app (Google Maps JS map + routing)
@@ -139,3 +145,4 @@ See: `docs/GOOGLE_MAPS_APPROX_LOCATION.md`
 - OpenRouter LLM extraction: `docs/OPENROUTER_LLM_EXTRACTION.md`
 - Deployment runbook (GCP managed + self-hosted): `docs/DEPLOYMENT.md`
 - Privacy policy: `docs/PRIVACY.md`
+- Changelog: `CHANGELOG.md`

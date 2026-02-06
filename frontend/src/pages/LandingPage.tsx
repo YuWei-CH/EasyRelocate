@@ -159,6 +159,23 @@ export default function LandingPage() {
               </li>
             </ul>
           </div>
+
+          <div className="landingCard">
+            <h2>What&apos;s new</h2>
+            <ul>
+              <li>Search and select workplace/company address with suggestions.</li>
+              <li>Add “Interesting Targets” and show them as map markers.</li>
+              <li>Improved workspace pairing and onboarding flow.</li>
+            </ul>
+            <a
+              className="button secondary"
+              href="https://github.com/YuWei-CH/EasyRelocate/blob/main/CHANGELOG.md"
+              target="_blank"
+              rel="noreferrer"
+            >
+              View full changelog
+            </a>
+          </div>
         </section>
       </main>
 

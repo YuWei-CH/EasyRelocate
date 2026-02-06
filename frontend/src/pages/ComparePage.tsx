@@ -3,14 +3,18 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 
 import MapView from '../MapView'
-import type { CompareItem, ListingSummary } from '../api'
+import type { CompareItem, GeocodeResult, InterestingTarget, ListingSummary } from '../api'
 import { DISABLE_GOOGLE_MAPS } from '../config'
 import { loadGoogleMaps } from '../googleMaps'
 import {
   deleteListing,
+  deleteInterestingTarget,
   fetchCompare,
   fetchListingsSummary,
+  geocodeAddress,
+  listInterestingTargets,
   reverseGeocode,
+  upsertInterestingTarget,
   upsertTarget,
 } from '../api'
 
@@ -103,6 +107,20 @@ function App() {
   const [targetCoordsPreviewLocation, setTargetCoordsPreviewLocation] = useState<string | null>(
     null,
   )
+  const [targetAddressSuggestions, setTargetAddressSuggestions] = useState<GeocodeResult[]>([])
+  const [targetAddressSuggesting, setTargetAddressSuggesting] = useState(false)
+  const [showTargetAddressSuggestions, setShowTargetAddressSuggestions] = useState(false)
+  const [targetAddressQuery, setTargetAddressQuery] = useState('')
+  const targetAddressSuggestReqRef = useRef(0)
+  const [interestingTargets, setInterestingTargets] = useState<InterestingTarget[]>([])
+  const [interestingName, setInterestingName] = useState('')
+  const [interestingAddress, setInterestingAddress] = useState('')
+  const [interestingAddressSuggestions, setInterestingAddressSuggestions] = useState<GeocodeResult[]>(
+    [],
+  )
+  const [interestingAddressSuggesting, setInterestingAddressSuggesting] = useState(false)
+  const [showInterestingAddressSuggestions, setShowInterestingAddressSuggestions] = useState(false)
+  const interestingAddressSuggestReqRef = useRef(0)
 
   const [compareItems, setCompareItems] = useState<CompareItem[]>([])
   const [target, setTarget] = useState<{
@@ -148,6 +166,80 @@ function App() {
   useEffect(() => {
     if (targetLocationMode !== 'coords') setIsPickingTarget(false)
   }, [targetLocationMode])
+
+  useEffect(() => {
+    if (targetLocationMode !== 'address') {
+      setShowTargetAddressSuggestions(false)
+      setTargetAddressSuggestions([])
+      return
+    }
+    const query = targetAddress.trim()
+    setTargetAddressQuery(query)
+    const token = (localStorage.getItem('easyrelocate_workspace_token') ?? '').trim()
+    if (query.length < 3 || !token) {
+      setTargetAddressSuggestions([])
+      setShowTargetAddressSuggestions(false)
+      setTargetAddressSuggesting(false)
+      return
+    }
+
+    const reqId = ++targetAddressSuggestReqRef.current
+    setTargetAddressSuggesting(true)
+    const timer = window.setTimeout(() => {
+      void (async () => {
+        try {
+          const results = await geocodeAddress(query, { limit: 5 })
+          if (targetAddressSuggestReqRef.current !== reqId) return
+          setTargetAddressSuggestions(results)
+          setShowTargetAddressSuggestions(results.length > 0)
+        } catch {
+          if (targetAddressSuggestReqRef.current !== reqId) return
+          setTargetAddressSuggestions([])
+          setShowTargetAddressSuggestions(false)
+        } finally {
+          if (targetAddressSuggestReqRef.current === reqId) {
+            setTargetAddressSuggesting(false)
+          }
+        }
+      })()
+    }, 280)
+
+    return () => window.clearTimeout(timer)
+  }, [targetAddress, targetLocationMode])
+
+  useEffect(() => {
+    const query = interestingAddress.trim()
+    const token = (localStorage.getItem('easyrelocate_workspace_token') ?? '').trim()
+    if (query.length < 3 || !token) {
+      setInterestingAddressSuggestions([])
+      setShowInterestingAddressSuggestions(false)
+      setInterestingAddressSuggesting(false)
+      return
+    }
+
+    const reqId = ++interestingAddressSuggestReqRef.current
+    setInterestingAddressSuggesting(true)
+    const timer = window.setTimeout(() => {
+      void (async () => {
+        try {
+          const results = await geocodeAddress(query, { limit: 5 })
+          if (interestingAddressSuggestReqRef.current !== reqId) return
+          setInterestingAddressSuggestions(results)
+          setShowInterestingAddressSuggestions(results.length > 0)
+        } catch {
+          if (interestingAddressSuggestReqRef.current !== reqId) return
+          setInterestingAddressSuggestions([])
+          setShowInterestingAddressSuggestions(false)
+        } finally {
+          if (interestingAddressSuggestReqRef.current === reqId) {
+            setInterestingAddressSuggesting(false)
+          }
+        }
+      })()
+    }, 280)
+
+    return () => window.clearTimeout(timer)
+  }, [interestingAddress])
 
   const selectedItem = useMemo(() => {
     if (!selectedListingId) return null
@@ -317,6 +409,8 @@ function App() {
         const res = await fetchCompare(id)
         setTarget(res.target)
         setCompareItems(res.items)
+        const points = await listInterestingTargets()
+        setInterestingTargets(points)
       } catch (e) {
         if (!silent) setError(e instanceof Error ? e.message : String(e))
       } finally {
@@ -465,6 +559,53 @@ function App() {
       localStorage.setItem('easyrelocate_target_lng', String(saved.lng))
 
       await refresh({ nextTargetId: saved.id })
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e))
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const onAddInterestingTarget = async () => {
+    const token = (localStorage.getItem('easyrelocate_workspace_token') ?? '').trim()
+    if (!token) {
+      setError('Missing workspace token. Set a workspace token first.')
+      return
+    }
+    const name = interestingName.trim()
+    const address = interestingAddress.trim()
+    if (!name) {
+      setError('Provide a name for the interesting target.')
+      return
+    }
+    if (!address) {
+      setError('Provide an address for the interesting target.')
+      return
+    }
+
+    setLoading(true)
+    setError(null)
+    try {
+      await upsertInterestingTarget({ name, address })
+      setInterestingName('')
+      setInterestingAddress('')
+      setInterestingAddressSuggestions([])
+      setShowInterestingAddressSuggestions(false)
+      const points = await listInterestingTargets()
+      setInterestingTargets(points)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e))
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const onDeleteInterestingTarget = async (id: string) => {
+    setLoading(true)
+    setError(null)
+    try {
+      await deleteInterestingTarget(id)
+      setInterestingTargets((prev) => prev.filter((x) => x.id !== id))
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e))
     } finally {
@@ -685,7 +826,7 @@ function App() {
                         setError(null)
                       }}
                     />
-                    Address
+                    Address - Type to search
                   </label>
                   <label style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
                     <input
@@ -706,12 +847,56 @@ function App() {
               <>
                 <div className="row" style={{ marginTop: 8 }}>
                   <div className="field" style={{ flex: 2 }}>
-                    <label>Address</label>
+                    <label>Address - Type to search</label>
                     <input
                       value={targetAddress}
-                      onChange={(e) => setTargetAddress(e.target.value)}
+                      onChange={(e) => {
+                        setTargetAddress(e.target.value)
+                        setShowTargetAddressSuggestions(true)
+                      }}
+                      onFocus={() => {
+                        if (targetAddressSuggestions.length > 0) {
+                          setShowTargetAddressSuggestions(true)
+                        }
+                      }}
+                      onBlur={() => {
+                        window.setTimeout(() => setShowTargetAddressSuggestions(false), 120)
+                      }}
                       placeholder="e.g. 1600 Amphitheatre Pkwy, Mountain View, CA"
                     />
+                    {targetAddressSuggesting ? (
+                      <div className="typeaheadHint">Searching companies and addresses…</div>
+                    ) : null}
+                    {showTargetAddressSuggestions && targetAddressSuggestions.length > 0 ? (
+                      <div className="typeaheadMenu">
+                        {targetAddressSuggestions.map((s) => (
+                          <button
+                            key={`${s.display_name}:${s.lat}:${s.lng}`}
+                            type="button"
+                            className="typeaheadItem"
+                            onMouseDown={(e) => e.preventDefault()}
+                            onClick={() => {
+                              setTargetAddress(s.display_name)
+                              setTargetLat(String(s.lat))
+                              setTargetLng(String(s.lng))
+                              setTargetAddressSuggestions([])
+                              setShowTargetAddressSuggestions(false)
+                            }}
+                            title={`${s.lat.toFixed(6)}, ${s.lng.toFixed(6)}`}
+                          >
+                            {s.display_name}
+                          </button>
+                        ))}
+                      </div>
+                    ) : null}
+                    {showTargetAddressSuggestions &&
+                      !targetAddressSuggesting &&
+                      targetAddressQuery.length >= 3 &&
+                      targetAddressSuggestions.length === 0 ? (
+                      <div className="typeaheadEmpty">
+                        No candidates found for "{targetAddressQuery}".
+                      </div>
+                    ) : null}
                   </div>
                 </div>
                 {target ? (
@@ -851,6 +1036,126 @@ function App() {
             {routeMode !== 'LINE' && selectedItem && routeError ? (
               <div className="error">{routeError}</div>
             ) : null}
+          </section>
+
+          <section className="panel">
+            <h2>Interesting Targets</h2>
+            <div className="row">
+              <div className="field" style={{ flex: 1 }}>
+                <label>Name</label>
+                <input
+                  value={interestingName}
+                  onChange={(e) => setInterestingName(e.target.value)}
+                  placeholder="e.g. Costco, friend home"
+                />
+              </div>
+            </div>
+            <div className="row" style={{ marginTop: 8 }}>
+              <div className="field" style={{ flex: 1 }}>
+                <label>Address - Type to search</label>
+                <input
+                  value={interestingAddress}
+                  onChange={(e) => {
+                    setInterestingAddress(e.target.value)
+                    setShowInterestingAddressSuggestions(true)
+                  }}
+                  onFocus={() => {
+                    if (interestingAddressSuggestions.length > 0) {
+                      setShowInterestingAddressSuggestions(true)
+                    }
+                  }}
+                  onBlur={() => {
+                    window.setTimeout(() => setShowInterestingAddressSuggestions(false), 120)
+                  }}
+                  placeholder="Search place and pick one"
+                />
+                {interestingAddressSuggesting ? (
+                  <div className="typeaheadHint">Searching places…</div>
+                ) : null}
+                {showInterestingAddressSuggestions && interestingAddressSuggestions.length > 0 ? (
+                  <div className="typeaheadMenu">
+                    {interestingAddressSuggestions.map((s) => (
+                      <button
+                        key={`${s.display_name}:${s.lat}:${s.lng}`}
+                        type="button"
+                        className="typeaheadItem"
+                        onMouseDown={(e) => e.preventDefault()}
+                        onClick={() => {
+                          setInterestingAddress(s.display_name)
+                          setInterestingAddressSuggestions([])
+                          setShowInterestingAddressSuggestions(false)
+                        }}
+                        title={`${s.lat.toFixed(6)}, ${s.lng.toFixed(6)}`}
+                      >
+                        {s.display_name}
+                      </button>
+                    ))}
+                  </div>
+                ) : null}
+              </div>
+              <div className="actions">
+                <button className="button secondary" onClick={() => void onAddInterestingTarget()}>
+                  Add point
+                </button>
+              </div>
+            </div>
+            <div style={{ marginTop: 10, fontSize: 12, color: '#475569' }}>
+              These points appear on map only (not in distance sorting).
+            </div>
+            {interestingTargets.length === 0 ? (
+              <div style={{ marginTop: 10, fontSize: 12, color: '#64748b' }}>
+                No interesting targets yet.
+              </div>
+            ) : (
+              <div style={{ marginTop: 10, display: 'grid', gap: 8 }}>
+                {interestingTargets.map((point) => (
+                  <div
+                    key={point.id}
+                    style={{
+                      border: '1px solid #e2e8f0',
+                      borderRadius: 10,
+                      padding: '8px 10px',
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      gap: 12,
+                      alignItems: 'center',
+                    }}
+                  >
+                    <div style={{ minWidth: 0 }}>
+                      <div
+                        style={{
+                          fontSize: 13,
+                          fontWeight: 700,
+                          color: '#0f172a',
+                          lineHeight: 1.2,
+                        }}
+                      >
+                        {point.name}
+                      </div>
+                      <div
+                        style={{
+                          marginTop: 3,
+                          fontSize: 12,
+                          color: '#64748b',
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis',
+                          whiteSpace: 'nowrap',
+                        }}
+                        title={point.address ?? undefined}
+                      >
+                        {point.address ?? `${point.lat.toFixed(6)}, ${point.lng.toFixed(6)}`}
+                      </div>
+                    </div>
+                    <button
+                      className="button danger"
+                      onClick={() => void onDeleteInterestingTarget(point.id)}
+                    >
+                      Remove
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
           </section>
 
           <section className="panel">
@@ -1012,6 +1317,7 @@ function App() {
             target={target}
             initialCenter={initialCenter}
             items={filteredAndSorted}
+            interestingTargets={interestingTargets}
             selectedListingId={selectedListingId}
             onSelectListingId={setSelectedListingId}
             isPickingTarget={isPickingTarget}

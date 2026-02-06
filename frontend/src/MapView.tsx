@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 
-import type { CompareItem, Target } from './api'
+import type { CompareItem, InterestingTarget, Target } from './api'
 import { DISABLE_GOOGLE_MAPS } from './config'
 import { loadGoogleMaps } from './googleMaps'
 
@@ -17,6 +17,7 @@ type Props = {
   target: Target | null
   initialCenter: { lat: number; lng: number } | null
   items: CompareItem[]
+  interestingTargets: InterestingTarget[]
   selectedListingId: string | null
   onSelectListingId: (id: string) => void
   isPickingTarget: boolean
@@ -56,13 +57,27 @@ const LAPTOP_PIN_SVG = `
 </svg>
 `.trim()
 
-function markerIcon(kind: 'target' | 'listing', opts?: { selected?: boolean }) {
+const INTERESTING_PIN_SVG = `
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+  <circle cx="12" cy="12" r="10" fill="#16a34a" stroke="rgba(255,255,255,0.95)" stroke-width="2" />
+  <path d="M12 6.8l1.6 3.2 3.5.5-2.5 2.4.6 3.4L12 14.7l-3.2 1.7.6-3.4-2.5-2.4 3.5-.5L12 6.8Z" fill="none" stroke="#ffffff" stroke-width="1.5" stroke-linejoin="round" />
+</svg>
+`.trim()
+
+function markerIcon(kind: 'target' | 'listing' | 'interesting', opts?: { selected?: boolean }) {
   const selected = opts?.selected ?? false
   if (kind === 'target') {
     return {
       url: svgUrl(LAPTOP_PIN_SVG),
       scaledSize: new google.maps.Size(40, 40),
       anchor: new google.maps.Point(20, 20),
+    }
+  }
+  if (kind === 'interesting') {
+    return {
+      url: svgUrl(INTERESTING_PIN_SVG),
+      scaledSize: new google.maps.Size(30, 30),
+      anchor: new google.maps.Point(15, 15),
     }
   }
   const size = selected ? 34 : 30
@@ -77,6 +92,7 @@ export default function MapView({
   target,
   initialCenter,
   items,
+  interestingTargets,
   selectedListingId,
   onSelectListingId,
   isPickingTarget,
@@ -118,8 +134,14 @@ export default function MapView({
               lat: target.lat,
             },
           ]
-    return [...targetPoint, ...listingPoints]
-  }, [items, target])
+    const interestingPoints = interestingTargets.map((it) => ({
+      id: it.id,
+      kind: 'interesting' as const,
+      lng: it.lng,
+      lat: it.lat,
+    }))
+    return [...targetPoint, ...interestingPoints, ...listingPoints]
+  }, [interestingTargets, items, target])
 
   useEffect(() => {
     if (!containerRef.current) return
@@ -191,7 +213,7 @@ export default function MapView({
         position: { lat: p.lat, lng: p.lng },
         icon: markerIcon(p.kind, { selected: isSelected }),
         clickable: p.kind === 'listing' && !isPickingTarget,
-        zIndex: p.kind === 'target' ? 3 : isSelected ? 2 : 1,
+        zIndex: p.kind === 'target' ? 3 : p.kind === 'interesting' ? 2 : isSelected ? 2 : 1,
       })
       if (p.kind === 'listing' && !isPickingTarget) {
         marker.addListener('click', () => onSelectListingId(p.id))

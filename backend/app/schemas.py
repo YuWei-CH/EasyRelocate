@@ -109,6 +109,40 @@ class TargetOut(BaseModel):
     updated_at: datetime
 
 
+class InterestingTargetUpsert(BaseModel):
+    id: str | None = None
+    name: str = Field(min_length=1, max_length=256)
+    address: str | None = Field(default=None, max_length=512)
+    lat: float | None = None
+    lng: float | None = None
+
+    @model_validator(mode="after")
+    def _validate_location(self) -> "InterestingTargetUpsert":
+        has_lat = self.lat is not None
+        has_lng = self.lng is not None
+        has_address = self.address is not None and self.address.strip() != ""
+        has_coords = has_lat and has_lng
+
+        if has_lat != has_lng:
+            raise ValueError("lat and lng must be provided together")
+        if has_address and has_coords:
+            raise ValueError("Provide either address, or both lat and lng (not both)")
+        if not (has_address or has_coords):
+            raise ValueError("Provide either address, or both lat and lng")
+        return self
+
+
+class InterestingTargetOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: str
+    name: str
+    address: str | None
+    lat: float
+    lng: float
+    updated_at: datetime
+
+
 class Metrics(BaseModel):
     distance_km: float | None = None
 
